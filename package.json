@@ -1,0 +1,33 @@
+{
+  "name": "pi-notify-mac",
+  "version": "0.1.0",
+  "description": "macOS completion notifications for Pi — system notification, sound, terminal title, and terminal bell when a session settles.",
+  "license": "MIT",
+  "author": "chenhaoxiang",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chenhaoxiang/pi-notify-mac.git"
+  },
+  "homepage": "https://github.com/chenhaoxiang/pi-notify-mac#readme",
+  "bugs": "https://github.com/chenhaoxiang/pi-notify-mac/issues",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "macos",
+    "notifications"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "files": [
+    "src"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/pi-notify-mac.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

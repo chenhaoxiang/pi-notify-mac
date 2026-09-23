@@ -14,10 +14,28 @@
 ## 要求
 
 - macOS
-- Pi 支持扩展机制
+- Pi 支持扩展机制与包管理（`pi install`）
 - `osascript`（macOS 系统自带）
 
 ## 安装
+
+### 作为 Pi package 安装（推荐）
+
+本仓库是一个标准的 [Pi package](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md)，直接从 git 安装：
+
+```bash
+pi install git:github.com/chenhaoxiang/pi-notify-mac
+```
+
+安装后重新启动 Pi 即可生效。用 `pi list` 查看已安装包，`pi remove git:github.com/chenhaoxiang/pi-notify-mac` 卸载。
+
+发布后也可以从 npm 安装：
+
+```bash
+pi install npm:pi-notify-mac
+```
+
+### 手动安装（备选）
 
 将扩展复制到 Pi 的全局扩展目录：
 
