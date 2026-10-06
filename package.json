@@ -30,6 +30,9 @@
       "./src/pi-notify-mac.ts"
     ]
   },
+  "scripts": {
+    "test": "node --no-warnings --experimental-vm-modules --test --test-concurrency=1 test/*.test.mjs"
+  },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
   }
