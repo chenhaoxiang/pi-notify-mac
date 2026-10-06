@@ -126,6 +126,7 @@ function hasActiveSubagentRuns(sessionIdentity: string | undefined): boolean {
       const belongs =
         !sessionIdentity ||
         typeof status.sessionId !== "string" ||
+        status.sessionId.trim().length === 0 ||
         status.sessionId === sessionIdentity;
       if (!belongs) continue;
       ownRunIds.add(entry.name); // directory name IS the run id
@@ -225,6 +226,7 @@ export default function (pi: ExtensionAPI) {
       // The session was switched/reloaded after this timer was scheduled.
       if (currentSessionIdentity !== identitySnapshot) return;
       try {
+        if (ctx.mode !== "tui") return;
         // A completion delivery may have been queued during the grace window
         // while its run is already terminal and agent_start has not fired yet.
         if (ctx.hasPendingMessages()) return;

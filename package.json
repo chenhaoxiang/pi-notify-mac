@@ -23,7 +23,8 @@
     "src",
     "README.md",
     "README.zh-CN.md",
-    "docs/releasing.md"
+    "docs/releasing.md",
+    "docs/notification-completion.md"
   ],
   "pi": {
     "extensions": [

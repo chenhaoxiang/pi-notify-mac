@@ -55,7 +55,9 @@ Cover mode guards, queues, both active states, known non-active states, unknown/
 
 ## Local candidate evidence
 
-Before publication, the candidate implementation passed 60 synthetic tests with no skips, the five pinned public producer hashes/state contracts, and isolated Pi RPC proof of all four registrations with two successful read-only commands, zero prompts and zero notification-transport invocations. These are local checks, not review/CI/release/installation completion or macOS delivery acceptance. The workspace-wide docmeta gate is not this repository's control-file set; owner documents use the official staged subrepository docmeta-lite schema check instead.
+The initial pre-review candidate passed 60 synthetic tests with no skips, the five pinned public producer hashes/state contracts, and isolated Pi RPC proof of all four registrations with two successful read-only commands, zero prompts and zero notification-transport invocations. These are local checks, not review/CI/release/installation completion or macOS delivery acceptance. The workspace-wide docmeta gate is not this repository's control-file set; owner documents use the official staged subrepository docmeta-lite schema check instead.
+
+The first independent source review identified empty ownership being mistaken for a foreign session (P1), an omitted packaged behavior document (P2), and literal escaped paragraph breaks (P2). Those are corrected with new append-only regressions; a dispatch-time TUI recheck makes the mode invariant explicit. The revised local candidate passes 72 tests with no skips, pinned-source and isolated RPC checks, and a fresh local pack containing both linked owner documents. This still does not mark review/CI/publication/installation complete.
 
 ## Publication and installation boundaries
 

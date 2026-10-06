@@ -29,7 +29,9 @@ Applies to the independent original project chenhaoxiang/pi-notify-mac.
 
 ## Installation and rollback
 
-Before enabling the pinned package, preserve an existing manual file and the pre-switch package configuration in an owner-only backup; verify its bytes, then move the manual file outside extension discovery. Use the pinned GitHub command in README, or download all three Release assets, verify checksums, extract to a permanent user-owned directory and run `pi install /absolute/path/to/package`. Verify exactly one selected source and that unrelated settings are unchanged. If package installation fails, preserve the error and restore the previous single source without enabling both copies. Keep previous source/version for rollback; do not overwrite old tags/assets.\n\nRestart Pi after installing; changing disk files does not hot-load existing sessions, and an active Subagents0.76.1 runtime may reject mixed-module `/reload`. Do not force-stop live tasks. See [notification/migration contract](notification-completion.md) for the imported local guards, tested schema and actual acceptance record.
+Before enabling the pinned package, preserve an existing manual file and the pre-switch package configuration in an owner-only backup; verify its bytes, then move the manual file outside extension discovery. Use the pinned GitHub command in README, or download all three Release assets, verify checksums, extract to a permanent user-owned directory and run `pi install /absolute/path/to/package`. Verify exactly one selected source and that unrelated settings are unchanged. If package installation fails, preserve the error and restore the previous single source without enabling both copies. Keep previous source/version for rollback; do not overwrite old tags/assets.
+
+Restart Pi after installing; changing disk files does not hot-load existing sessions, and an active Subagents0.76.1 runtime may reject mixed-module `/reload`. Do not force-stop live tasks. See [notification/migration contract](notification-completion.md) for the imported local guards, tested schema and actual acceptance record.
 
 ## 中文摘要
 
