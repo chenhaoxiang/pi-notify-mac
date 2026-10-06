@@ -20,7 +20,7 @@ Applies to the independent original project chenhaoxiang/pi-notify-mac.
 
 1. Fetch origin/main and create an isolated worktree from its exact latest commit. Preserve unrelated dirty work.
 2. Update package version, lockfile version metadata when changed, and both README files. English README is the default; the Chinese document links back.
-3. Inspect event registration and package contents; smoke-load in an isolated agent directory without sending prompts or triggering macOS notifications. No automated functional test suite exists; real sound/notification/title checks remain manual.
+3. Run `npm test` without altering frozen baseline fixtures/assertions. Run the pinned producer contract checker against the public Subagents checkout. Inspect package contents and smoke-load in an isolated agent directory without prompts or macOS notifications; real sound/notification/title checks remain manual.
 4. Review the exact diff and merge the PR normally; verify remote main contains the validated head.
 5. Build the package at that exact main SHA using `npm pack --ignore-scripts --pack-destination tmp/release`. Extract the tarball and load it through isolated Pi RPC with a synthetic loopback model and no prompts. Include both README files and this runbook.
 6. Generate `release-manifest.json` with repository, version, exact source commit, tarball filename and SHA-256; community fields are null. Generate `SHA256SUMS` for the tarball and manifest.
@@ -29,7 +29,7 @@ Applies to the independent original project chenhaoxiang/pi-notify-mac.
 
 ## Installation and rollback
 
-Use the pinned GitHub command in README. For artifact/offline installation, download all three assets, verify checksums, extract to a permanent user-owned directory, then run `pi install /absolute/path/to/package`. Keep the previous source/version to roll back. Restart or `/reload` after installing; changing disk files does not hot-reload existing sessions. Do not enable both a manual extension copy and the package.
+Before enabling the pinned package, preserve an existing manual file and the pre-switch package configuration in an owner-only backup; verify its bytes, then move the manual file outside extension discovery. Use the pinned GitHub command in README, or download all three Release assets, verify checksums, extract to a permanent user-owned directory and run `pi install /absolute/path/to/package`. Verify exactly one selected source and that unrelated settings are unchanged. If package installation fails, preserve the error and restore the previous single source without enabling both copies. Keep previous source/version for rollback; do not overwrite old tags/assets.\n\nRestart Pi after installing; changing disk files does not hot-load existing sessions, and an active Subagents0.76.1 runtime may reject mixed-module `/reload`. Do not force-stop live tasks. See [notification/migration contract](notification-completion.md) for the imported local guards, tested schema and actual acceptance record.
 
 ## 中文摘要
 
