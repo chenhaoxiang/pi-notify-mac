@@ -1,0 +1,19 @@
+{
+  "repository": "chenhaoxiang/pi-subagents",
+  "tag": "v0.76.1-fork.1",
+  "sourceCommit": "e40a8bbc218f9bfeb7e0818430b5d361d3416591",
+  "activeStates": ["queued", "running"],
+  "knownStates": ["queued", "running", "complete", "failed", "partial", "paused", "stopped", "rejected"],
+  "parentIdentity": "session file before session ID",
+  "topDirectory": "async-subagent-runs",
+  "nestedDirectory": "nested-subagent-runs",
+  "macTempPrefix": "pi-subagents-uid-",
+  "batchMaxWaitMs": 1000,
+  "files": {
+    "src/runs/background/active-run-index.ts": "4ad098dc146625130ca392acd8f2c26915a1dcb6508a8970df5882213db32a7b",
+    "src/shared/session-identity.ts": "856d15b4e1afba45e35d9c2fcd82c44403027535d38905629548e22a27803872",
+    "src/runs/background/completion-batcher.ts": "a6935ae375623fcfcb167c178cac4032316dbd93e8edfd7c300bf91e798f5da0",
+    "src/shared/types.ts": "a83ddef82650e576182aea96f474fbeda1e5ab5ef2a30be2f17fd6f1b9a96ee6",
+    "src/runs/shared/nested-events.ts": "aaaa30452bdf661c7d314516cb955013a75b3fcaeb19692953c618f816ca51b9"
+  }
+}

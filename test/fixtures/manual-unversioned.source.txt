@@ -24,7 +24,6 @@ const DEFAULT_GRACE_MS = 6000;
 // NOTE: a nested run's "sessionId" is the runner subprocess session, not the
 // parent session - nested ownership is derived from the rootRunId directory.
 const ACTIVE_RUN_STATES = new Set(["queued", "running"]);
-const KNOWN_RUN_STATES = new Set(["queued", "running", "complete", "failed", "partial", "paused", "stopped", "rejected"]);
 
 function appleScriptString(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[\\r\\n]/g, " ")}"`;
@@ -66,7 +65,7 @@ function readDirSafe(dir: string): fs.Dirent[] | "missing" | null {
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | undefined)?.code;
     if (code === "ENOENT" || code === "ENOTDIR") return "missing";
-    console.error(`[${EXTENSION_NAME}] failed to scan async status directory`);
+    console.error(`[${EXTENSION_NAME}] failed to scan '${dir}': ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -84,10 +83,10 @@ function readRunState(runDir: string): { state?: unknown; sessionId?: unknown } 
     const code = (error as NodeJS.ErrnoException | undefined)?.code;
     if (code === "ENOENT" || code === "ENOTDIR") return "missing"; // cleaned up mid-scan
     if (error instanceof SyntaxError) {
-      console.error(`[${EXTENSION_NAME}] corrupt status.json: invalid JSON`);
+      console.error(`[${EXTENSION_NAME}] corrupt status.json in '${runDir}': ${error.message}`);
       return null;
     }
-    console.error(`[${EXTENSION_NAME}] failed to read async status`);
+    console.error(`[${EXTENSION_NAME}] failed to read status.json in '${runDir}': ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -126,11 +125,10 @@ function hasActiveSubagentRuns(sessionIdentity: string | undefined): boolean {
       const belongs =
         !sessionIdentity ||
         typeof status.sessionId !== "string" ||
-        status.sessionId.trim().length === 0 ||
         status.sessionId === sessionIdentity;
       if (!belongs) continue;
       ownRunIds.add(entry.name); // directory name IS the run id
-      if (typeof status.state !== "string" || !KNOWN_RUN_STATES.has(status.state)) return true; // corrupt: conservative
+      if (typeof status.state !== "string") return true; // corrupt: conservative
       if (ACTIVE_RUN_STATES.has(status.state)) return true;
     }
   }
@@ -162,7 +160,7 @@ function hasActiveSubagentRuns(sessionIdentity: string | undefined): boolean {
       const status = readRunState(path.join(nestedDir, entry.name, child.name));
       if (status === null) return true;
       if (status === "missing") continue;
-      if (typeof status.state !== "string" || !KNOWN_RUN_STATES.has(status.state)) return true;
+      if (typeof status.state !== "string") return true;
       if (ACTIVE_RUN_STATES.has(status.state)) return true;
     }
   }
@@ -205,20 +203,14 @@ export default function (pi: ExtensionAPI) {
     if (ctx.mode !== "tui") return;
     // A queued follow-up message (e.g. a subagent completion delivery) is
     // about to trigger a new turn.
-    try {
-      if (ctx.hasPendingMessages()) return;
-    } catch {
-      return; // A replaced context is not proof of an idle session.
-    }
+    if (ctx.hasPendingMessages()) return;
     if (hasActiveSubagentRuns(currentSessionIdentity)) return;
 
     // Do not await a delay inside this handler: deferred work requested by
     // other settled handlers only starts after every handler returns.
     cancelScheduledNotification();
-    const graceText = process.env.PI_NOTIFY_MAC_GRACE_MS?.trim() ?? "";
-    const graceEnv = /^\d+$/.test(graceText) ? Number(graceText) : Number.NaN;
-    const delay = Number.isSafeInteger(graceEnv) && graceEnv >= 0 && graceEnv <= 2147483647
-      ? graceEnv : DEFAULT_GRACE_MS;
+    const graceEnv = Number.parseInt(process.env.PI_NOTIFY_MAC_GRACE_MS ?? "", 10);
+    const delay = Number.isFinite(graceEnv) && graceEnv >= 0 ? graceEnv : DEFAULT_GRACE_MS;
     const identitySnapshot = currentSessionIdentity;
 
     notifyTimer = setTimeout(() => {
@@ -226,7 +218,6 @@ export default function (pi: ExtensionAPI) {
       // The session was switched/reloaded after this timer was scheduled.
       if (currentSessionIdentity !== identitySnapshot) return;
       try {
-        if (ctx.mode !== "tui") return;
         // A completion delivery may have been queued during the grace window
         // while its run is already terminal and agent_start has not fired yet.
         if (ctx.hasPendingMessages()) return;
