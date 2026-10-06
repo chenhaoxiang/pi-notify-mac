@@ -1,85 +1,72 @@
 # pi-notify-mac
 
-一个面向 macOS 的 Pi 全局完成通知扩展。
+English | [中文](README.zh-CN.md)
 
-当 Pi session 完成并进入等待输入状态时，它会：
+A macOS completion-notification extension for Pi. After a session finishes retries, compaction, and queued work and reaches `agent_settled`, it sends a macOS notification, plays the configured sound, updates the terminal title to `✓ <project>`, and emits a terminal bell. Useful when several Pi sessions run in different terminals.
 
-- 发送 macOS 系统通知；
-- 播放 `Glass` 提示音；
-- 将当前终端标题改为 `✓ <项目名>`；
-- 发出终端响铃作为额外兜底。
+## Requirements
 
-适合同时运行多个 Pi session、经常切换终端窗口的场景。
+- macOS.
+- Pi with extension/package support (`pi install`).
+- `osascript`, included with macOS.
 
-## 要求
+## Install
 
-- macOS
-- Pi 支持扩展机制与包管理（`pi install`）
-- `osascript`（macOS 系统自带）
-
-## 安装
-
-### 作为 Pi package 安装（推荐）
-
-本仓库是一个标准的 [Pi package](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md)，直接从 git 安装：
+Install the fixed release as a standard Pi package:
 
 ```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.1.0
 ```
 
-安装后重新启动 Pi 即可生效。用 `pi list` 查看已安装包，`pi remove git:github.com/chenhaoxiang/pi-notify-mac` 卸载。
+Use `@main` only when you deliberately want the moving maintained branch. Restart Pi after installation, or `/reload` in an existing session. Inspect packages with `pi list`. Remove this source with `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.1.0`.
 
-发布后也可以从 npm 安装：
+If you previously copied the extension into `~/.pi/agent/extensions/pi-notify-mac.ts`, avoid also enabling the package: two enabled copies produce duplicate notifications. Preserve the old copy and disable one source before switching.
 
-```bash
-pi install npm:pi-notify-mac
-```
-
-### 手动安装（备选）
-
-将扩展复制到 Pi 的全局扩展目录：
+### Manual installation (alternative)
 
 ```bash
 mkdir -p ~/.pi/agent/extensions
 cp src/pi-notify-mac.ts ~/.pi/agent/extensions/pi-notify-mac.ts
 ```
 
-重新启动 Pi；已经运行的 session 可以执行 `/reload`（如果当前 Pi 版本支持）。
+Use either manual discovery or package installation, not both.
 
-## 配置
+## Releases and maintenance
 
-默认提示音为 `Glass`。可以通过环境变量修改：
+Current packaged release: **0.1.0**. This is an original project using ordinary SemVer and `v<version>` tags. `main` is the PR-managed release branch; there is no fictional community upstream or `upstream-main` branch. The historical v0.0.1 release remains available.
+
+[GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) include an installable tarball, source manifest, and `SHA256SUMS`. Verify the assets before installing them. GitHub release does not imply npm publication. See [release maintenance](docs/releasing.md).
+
+## Configuration
+
+The default notification sound is `Glass`. Change it for one session:
 
 ```bash
 PI_NOTIFY_MAC_SOUND=Ping pi
 ```
 
-不播放声音：
+Disable the sound:
 
 ```bash
 PI_NOTIFY_MAC_SOUND='' pi
 ```
 
-## 工作原理
+macOS notification permissions and terminal bell/title preferences may affect what is visible or audible.
 
-扩展监听 Pi 的 `agent_settled` 事件，而不是较早的 `agent_end` 事件。这样只有在 Pi 完成重试、上下文压缩和后续队列处理后，才发送通知。
+## How it works
 
-通知失败不会影响 Pi 主流程。
+The extension listens to `agent_settled`, not the earlier `agent_end`. Only after Pi completes automatic retries, context compaction and queued follow-ups does it notify. Notification failures are logged and must not interfere with the main session.
 
-## 开发
+## Development and verification
 
-扩展源码位于：
-
-```text
-src/pi-notify-mac.ts
-```
-
-使用 Pi 临时加载测试：
+Source: `src/pi-notify-mac.ts`. Try it without installation:
 
 ```bash
 pi -e ./src/pi-notify-mac.ts
 ```
 
-## 开源说明
+This repository currently has no automated functional test suite. Release checks cover event registration, package contents and isolated Pi startup without sending model prompts or creating macOS notifications. Actual notification/sound/title delivery requires a manual macOS permission and terminal check; package loading alone does not prove it.
 
-本项目按 MIT License 发布，适合作为独立 Pi 扩展使用或二次开发。
+## License
+
+MIT
