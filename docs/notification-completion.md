@@ -53,6 +53,10 @@ Use a Node VM module with TypeScript erasure and an allowlisted linker. Supply f
 
 Cover mode guards, queues, both active states, known non-active states, unknown/corrupt data, different/missing ownership, nested ownership, missing/IO failures, resume/reload reconstruction from disk, delay boundaries and overrides, cancellation/replacement/unref, and errors/stale contexts. Contract checks use pinned public producer source and synthetic data, not live runs. Isolated Pi RPC startup checks only registration/load and JSON framing without model prompts; it does not prove macOS permissions or actual delivery.
 
+## Local candidate evidence
+
+Before publication, the candidate implementation passed 60 synthetic tests with no skips, the five pinned public producer hashes/state contracts, and isolated Pi RPC proof of all four registrations with two successful read-only commands, zero prompts and zero notification-transport invocations. These are local checks, not review/CI/release/installation completion or macOS delivery acceptance. The workspace-wide docmeta gate is not this repository's control-file set; owner documents use the official staged subrepository docmeta-lite schema check instead.
+
 ## Publication and installation boundaries
 
 Follow [release maintenance](releasing.md), publish immutable tag/assets and verify fresh public downloads before installation. Back up the manual source and the pre-switch package configuration to an owner-only location. Move the manual file outside the automatic extension-discovery directory before enabling the fixed package. If installation fails, retain the recoverable backup and report/restore the previous single source; never leave two enabled copies.

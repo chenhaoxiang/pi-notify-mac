@@ -14,7 +14,7 @@ Applies to the independent original project chenhaoxiang/pi-notify-mac.
 
 ## Branches and versions
 
-`main` is the maintained default/release branch and accepts changes through pull requests. Use ordinary SemVer and `v<version>` tags. No community base, fork suffix, or community mirror is claimed. Retain all historical branches and previous releases. Never reuse a published tag or replace its assets.
+`main` is the maintained default/release branch and accepts changes through pull requests. Use ordinary SemVer and `v<version>` tags. No community base, fork suffix, or community mirror is claimed. Retain all historical branches and previous releases. Never reuse a published tag or replace its assets. Check changed owner documents with the shared staged docmeta-lite schema gate; the workspace root's baseline/control-file set is not owned by this package.
 
 ## Publish every version
 
