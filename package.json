@@ -20,7 +20,10 @@
     "darwin"
   ],
   "files": [
-    "src"
+    "src",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/releasing.md"
   ],
   "pi": {
     "extensions": [
