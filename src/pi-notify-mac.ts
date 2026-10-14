@@ -103,23 +103,26 @@ function readRunState(runDir: string): { state?: unknown; sessionId?: unknown } 
  * from disk WITHOUT re-emitting subagent:async-started, so an event-counter
  * approach silently loses track of them.
  */
-function hasActiveSubagentRuns(sessionIdentity: string | undefined): boolean {
+type SubagentBlock = "active-subagent" | "unverified-subagents";
+function hasActiveSubagentRuns(sessionIdentity: string | undefined, report?: (reason: SubagentBlock) => void): boolean {
+  const uncertain = () => { report?.("unverified-subagents"); return true; };
+  const active = () => { report?.("active-subagent"); return true; };
   const root = tempRoot();
   const topDir = path.join(root, "async-subagent-runs");
   const ownRunIds = new Set<string>();
 
   const topLevel = readDirSafe(topDir);
-  if (topLevel === null) return true; // scan failure: fail closed
+  if (topLevel === null) return uncertain(); // scan failure: fail closed
   if (topLevel !== "missing") {
     for (const entry of topLevel) {
       // Skip the .active-runs / .terminal-runs index directories.
       if (entry.name.startsWith(".")) continue;
       if (!entry.isDirectory()) {
         console.error(`[${EXTENSION_NAME}] unexpected non-directory entry '${entry.name}' in '${topDir}'`);
-        return true; // unknown layout: fail closed
+        return uncertain(); // unknown layout: fail closed
       }
       const status = readRunState(path.join(topDir, entry.name));
-      if (status === null) return true;
+      if (status === null) return uncertain();
       if (status === "missing") continue;
       // Runs without a readable sessionId cannot be attributed: treat them as
       // belonging to this session (conservative).
@@ -130,8 +133,8 @@ function hasActiveSubagentRuns(sessionIdentity: string | undefined): boolean {
         status.sessionId === sessionIdentity;
       if (!belongs) continue;
       ownRunIds.add(entry.name); // directory name IS the run id
-      if (typeof status.state !== "string" || !KNOWN_RUN_STATES.has(status.state)) return true; // corrupt: conservative
-      if (ACTIVE_RUN_STATES.has(status.state)) return true;
+      if (typeof status.state !== "string" || !KNOWN_RUN_STATES.has(status.state)) return uncertain(); // corrupt: conservative
+      if (ACTIVE_RUN_STATES.has(status.state)) return active();
     }
   }
 
@@ -141,29 +144,29 @@ function hasActiveSubagentRuns(sessionIdentity: string | undefined): boolean {
   if (ownRunIds.size === 0) return false;
   const nestedDir = path.join(root, "nested-subagent-runs");
   const nestedRoots = readDirSafe(nestedDir);
-  if (nestedRoots === null) return true;
+  if (nestedRoots === null) return uncertain();
   if (nestedRoots === "missing") return false;
   for (const entry of nestedRoots) {
     if (entry.name.startsWith(".")) continue;
     if (!entry.isDirectory()) {
       console.error(`[${EXTENSION_NAME}] unexpected non-directory entry '${entry.name}' in '${nestedDir}'`);
-      return true;
+      return uncertain();
     }
     if (!ownRunIds.has(entry.name)) continue; // other session's or cleaned-up root
     const children = readDirSafe(path.join(nestedDir, entry.name));
-    if (children === null) return true;
+    if (children === null) return uncertain();
     if (children === "missing") continue;
     for (const child of children) {
       if (child.name.startsWith(".")) continue;
       if (!child.isDirectory()) {
         console.error(`[${EXTENSION_NAME}] unexpected non-directory entry '${child.name}' in '${path.join(nestedDir, entry.name)}'`);
-        return true;
+        return uncertain();
       }
       const status = readRunState(path.join(nestedDir, entry.name, child.name));
-      if (status === null) return true;
+      if (status === null) return uncertain();
       if (status === "missing") continue;
-      if (typeof status.state !== "string" || !KNOWN_RUN_STATES.has(status.state)) return true;
-      if (ACTIVE_RUN_STATES.has(status.state)) return true;
+      if (typeof status.state !== "string" || !KNOWN_RUN_STATES.has(status.state)) return uncertain();
+      if (ACTIVE_RUN_STATES.has(status.state)) return active();
     }
   }
   return false;
@@ -176,6 +179,24 @@ export default function (pi: ExtensionAPI) {
   // matches nothing and counts runs from other sessions.
   let currentSessionIdentity: string | undefined;
   let notifyTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastReason = "not-settled";
+  let waitingForInput = false;
+  const childrenBlock = (): SubagentBlock | undefined => {
+    let reason: SubagentBlock | undefined;
+    hasActiveSubagentRuns(currentSessionIdentity, value => { reason = value; });
+    return reason;
+  };
+  pi.registerCommand("notify-status", {
+    description: "Read completion-notification readiness without sending a notification",
+    handler: async (_args, ctx) => {
+      if (ctx.mode !== "tui") return;
+      let readiness: string;
+      try {
+        readiness = waitingForInput ? "waiting-for-input" : ctx.hasPendingMessages() ? "pending-messages" : childrenBlock() ?? "eligible";
+      } catch { readiness = "stale-context"; }
+      ctx.ui.notify(`Pi notification readiness: ${readiness}\nLast lifecycle decision: ${lastReason}\nVerified Subagents contracts: 0.76.1-fork.1, 0.78.0-fork.1\nEligible means guards permit a settle notification, not task success. A notification request is not proof of macOS delivery.`, "info");
+    },
+  });
 
   const cancelScheduledNotification = () => {
     if (notifyTimer) {
@@ -188,29 +209,47 @@ export default function (pi: ExtensionAPI) {
     currentSessionIdentity =
       ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
     cancelScheduledNotification();
+    lastReason = "not-settled";
+    waitingForInput = false;
   });
 
   pi.on("agent_start", () => {
     // A new run means the previous settle was only an intermediate wait.
     cancelScheduledNotification();
+    lastReason = "running";
   });
 
   pi.on("session_shutdown", () => {
     cancelScheduledNotification();
+    lastReason = "shutdown";
+    waitingForInput = false;
+  });
+
+  pi.on("ui_prompt_start", () => {
+    waitingForInput = true;
+    cancelScheduledNotification();
+    lastReason = "waiting-for-input";
+  });
+  pi.on("ui_prompt_end", () => {
+    waitingForInput = false;
+    lastReason = "input-resolved";
   });
 
   pi.on("agent_settled", (_event, ctx) => {
     // Notifications, terminal titles and bells are for interactive sessions
     // only; never write control sequences into print/json/rpc output streams.
-    if (ctx.mode !== "tui") return;
+    if (ctx.mode !== "tui") { lastReason = "non-interactive"; return; }
+    if (waitingForInput) { lastReason = "waiting-for-input"; return; }
     // A queued follow-up message (e.g. a subagent completion delivery) is
     // about to trigger a new turn.
     try {
-      if (ctx.hasPendingMessages()) return;
+      if (ctx.hasPendingMessages()) { lastReason = "pending-messages"; return; }
     } catch {
+      lastReason = "stale-context";
       return; // A replaced context is not proof of an idle session.
     }
-    if (hasActiveSubagentRuns(currentSessionIdentity)) return;
+    const block = childrenBlock();
+    if (block) { lastReason = block; return; }
 
     // Do not await a delay inside this handler: deferred work requested by
     // other settled handlers only starts after every handler returns.
@@ -220,27 +259,31 @@ export default function (pi: ExtensionAPI) {
     const delay = Number.isSafeInteger(graceEnv) && graceEnv >= 0 && graceEnv <= 2147483647
       ? graceEnv : DEFAULT_GRACE_MS;
     const identitySnapshot = currentSessionIdentity;
+    lastReason = "grace";
 
     notifyTimer = setTimeout(() => {
       notifyTimer = null;
       // The session was switched/reloaded after this timer was scheduled.
       if (currentSessionIdentity !== identitySnapshot) return;
       try {
-        if (ctx.mode !== "tui") return;
+        if (ctx.mode !== "tui") { lastReason = "non-interactive"; return; }
         // A completion delivery may have been queued during the grace window
         // while its run is already terminal and agent_start has not fired yet.
-        if (ctx.hasPendingMessages()) return;
+        if (ctx.hasPendingMessages()) { lastReason = "pending-messages"; return; }
       } catch {
+        lastReason = "stale-context";
         return; // ctx is stale after session replacement: do not notify.
       }
       // Re-check the authoritative source in case a run appeared meanwhile.
-      if (hasActiveSubagentRuns(currentSessionIdentity)) return;
+      const lateBlock = childrenBlock();
+      if (lateBlock) { lastReason = lateBlock; return; }
 
       const project = getProjectName();
       const title = `✓ ${project}`;
       const message = `${project} session 已完成，等待输入`;
       const sound = process.env.PI_NOTIFY_MAC_SOUND ?? DEFAULT_SOUND;
 
+      lastReason = "notification-requested";
       sendMacNotification("Pi 已完成", message, sound);
       setTerminalTitle(title);
       process.stdout.write("\x07");

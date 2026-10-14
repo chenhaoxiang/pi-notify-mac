@@ -16,9 +16,16 @@ jobs:
         with:
           node-version: '24'
       - run: npm test
-      - run: git diff --check
+      - run: git show --format= --check HEAD
   subagents-contract:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - commit: e40a8bbc218f9bfeb7e0818430b5d361d3416591
+            fixture: subagents-0.76.1-contract.json
+          - commit: 88d5be272f7ca222a127ccb2a70f093a537ff73b
+            fixture: subagents-0.78.0-contract.json
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
@@ -29,7 +36,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           repository: chenhaoxiang/pi-subagents
-          ref: e40a8bbc218f9bfeb7e0818430b5d361d3416591
+          ref: ${{ matrix.commit }}
           path: tmp/pinned-subagents
           persist-credentials: false
-      - run: node scripts/check-subagents-contract.mjs --repo tmp/pinned-subagents
+      - run: node scripts/check-subagents-contract.mjs --repo tmp/pinned-subagents --fixture ${{ matrix.fixture }}

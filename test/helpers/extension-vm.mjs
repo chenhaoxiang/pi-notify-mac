@@ -22,7 +22,7 @@ export async function harness(source, options = {}) {
   const dirs = new Map([[top, []], [nested, []]]);
   const files = new Map();
   const reads = [], errors = [], outputs = [], calls = [], delays = [];
-  const handlers = new Map(), timers = new Map();
+  const handlers = new Map(), timers = new Map(), commands = new Map(), notifications = [];
   let now = 0, nextId = 0, unrefs = 0;
   const clock = {
     setTimeout(fn, delay) {
@@ -91,13 +91,14 @@ export async function harness(source, options = {}) {
     }, { context });
   });
   await module.evaluate();
-  module.namespace.default({ on: (event, fn) => {
+  module.namespace.default({ registerCommand: (name, command) => commands.set(name, command), on: (event, fn) => {
     if (handlers.has(event)) throw new Error(`Duplicate fixture registration ${event}`);
     handlers.set(event, fn);
     return () => handlers.delete(event);
   } });
   const state = { mode: 'tui', sessionFile: OWNER, sessionId: 'fallback-owner', pending: false, stale: false };
   const ctx = {
+    ui: { notify: (message, level) => notifications.push({ message, level }) },
     get mode() { return state.mode; },
     hasPendingMessages: () => { if (state.stale) throw new Error('fixture stale'); return state.pending; },
     sessionManager: { getSessionFile: () => state.sessionFile, getSessionId: () => state.sessionId },
@@ -108,7 +109,7 @@ export async function harness(source, options = {}) {
     if (!list.some(e => e.name === name)) list.push(entry(name));
   };
   return {
-    state, clock, dirs, files, reads, errors, outputs, calls, delays, handlers, top, nested, root,
+    state, clock, dirs, files, reads, errors, outputs, calls, delays, handlers, commands, notifications, ctx, top, nested, root,
     async emit(name) { const fn = handlers.get(name); if (fn) await fn({ type: name }, ctx); },
     run(name, status = {}) {
       addEntry(top, name);

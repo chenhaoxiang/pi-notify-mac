@@ -5,7 +5,10 @@ import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 
-const fixture = JSON.parse(readFileSync(new URL('../test/fixtures/subagents-0.76.1-contract.json', import.meta.url), 'utf8'));
+const fixtureArg = process.argv.indexOf('--fixture');
+const fixtureName = fixtureArg < 0 ? 'subagents-0.76.1-contract.json' : process.argv[fixtureArg + 1];
+assert.ok(['subagents-0.76.1-contract.json', 'subagents-0.78.0-contract.json'].includes(fixtureName), 'Unknown pinned fixture');
+const fixture = JSON.parse(readFileSync(new URL(`../test/fixtures/${fixtureName}`, import.meta.url), 'utf8'));
 const i = process.argv.indexOf('--repo');
 assert.ok(i >= 0 && process.argv[i + 1], 'Usage: node scripts/check-subagents-contract.mjs --repo <public-subagents-checkout>');
 const repo = resolve(process.argv[i + 1]);

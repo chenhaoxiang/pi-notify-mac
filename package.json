@@ -1,6 +1,6 @@
 {
   "name": "pi-notify-mac",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "macOS completion notifications for Pi — system notification, sound, terminal title, and terminal bell when a session settles.",
   "license": "MIT",
   "author": "chenhaoxiang",
@@ -24,7 +24,8 @@
     "README.md",
     "README.zh-CN.md",
     "docs/releasing.md",
-    "docs/notification-completion.md"
+    "docs/notification-completion.md",
+    "docs/notification-diagnostics.md"
   ],
   "pi": {
     "extensions": [
