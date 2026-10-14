@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -181,6 +181,7 @@ export default function (pi: ExtensionAPI) {
   let notifyTimer: ReturnType<typeof setTimeout> | null = null;
   let lastReason = "not-settled";
   let waitingForInput = false;
+  let pendingSettle = false;
   const childrenBlock = (): SubagentBlock | undefined => {
     let reason: SubagentBlock | undefined;
     hasActiveSubagentRuns(currentSessionIdentity, value => { reason = value; });
@@ -192,7 +193,7 @@ export default function (pi: ExtensionAPI) {
       if (ctx.mode !== "tui") return;
       let readiness: string;
       try {
-        readiness = waitingForInput ? "waiting-for-input" : ctx.hasPendingMessages() ? "pending-messages" : childrenBlock() ?? "eligible";
+        readiness = waitingForInput ? "waiting-for-input" : !ctx.isIdle() ? "running" : ctx.hasPendingMessages() ? "pending-messages" : childrenBlock() ?? "eligible";
       } catch { readiness = "stale-context"; }
       ctx.ui.notify(`Pi notification readiness: ${readiness}\nLast lifecycle decision: ${lastReason}\nVerified Subagents contracts: 0.76.1-fork.1, 0.78.0-fork.1\nEligible means guards permit a settle notification, not task success. A notification request is not proof of macOS delivery.`, "info");
     },
@@ -211,18 +212,21 @@ export default function (pi: ExtensionAPI) {
     cancelScheduledNotification();
     lastReason = "not-settled";
     waitingForInput = false;
+    pendingSettle = false;
   });
 
   pi.on("agent_start", () => {
     // A new run means the previous settle was only an intermediate wait.
     cancelScheduledNotification();
     lastReason = "running";
+    pendingSettle = false;
   });
 
   pi.on("session_shutdown", () => {
     cancelScheduledNotification();
     lastReason = "shutdown";
     waitingForInput = false;
+    pendingSettle = false;
   });
 
   pi.on("ui_prompt_start", () => {
@@ -230,16 +234,20 @@ export default function (pi: ExtensionAPI) {
     cancelScheduledNotification();
     lastReason = "waiting-for-input";
   });
-  pi.on("ui_prompt_end", () => {
+  pi.on("ui_prompt_end", (_event, ctx) => {
     waitingForInput = false;
     lastReason = "input-resolved";
+    if (pendingSettle) scheduleNotification(ctx);
   });
 
-  pi.on("agent_settled", (_event, ctx) => {
+  function scheduleNotification(ctx: ExtensionContext): void {
     // Notifications, terminal titles and bells are for interactive sessions
     // only; never write control sequences into print/json/rpc output streams.
-    if (ctx.mode !== "tui") { lastReason = "non-interactive"; return; }
-    if (waitingForInput) { lastReason = "waiting-for-input"; return; }
+    try {
+      if (ctx.mode !== "tui") { lastReason = "non-interactive"; pendingSettle = false; return; }
+      if (waitingForInput) { lastReason = "waiting-for-input"; return; }
+      if (!ctx.isIdle()) { lastReason = "running"; pendingSettle = false; return; }
+    } catch { lastReason = "stale-context"; pendingSettle = false; return; }
     // A queued follow-up message (e.g. a subagent completion delivery) is
     // about to trigger a new turn.
     try {
@@ -267,6 +275,8 @@ export default function (pi: ExtensionAPI) {
       if (currentSessionIdentity !== identitySnapshot) return;
       try {
         if (ctx.mode !== "tui") { lastReason = "non-interactive"; return; }
+        if (waitingForInput) { lastReason = "waiting-for-input"; return; }
+        if (!ctx.isIdle()) { lastReason = "running"; pendingSettle = false; return; }
         // A completion delivery may have been queued during the grace window
         // while its run is already terminal and agent_start has not fired yet.
         if (ctx.hasPendingMessages()) { lastReason = "pending-messages"; return; }
@@ -283,6 +293,7 @@ export default function (pi: ExtensionAPI) {
       const message = `${project} session 已完成，等待输入`;
       const sound = process.env.PI_NOTIFY_MAC_SOUND ?? DEFAULT_SOUND;
 
+      pendingSettle = false;
       lastReason = "notification-requested";
       sendMacNotification("Pi 已完成", message, sound);
       setTerminalTitle(title);
@@ -290,5 +301,10 @@ export default function (pi: ExtensionAPI) {
     }, delay);
     // Never keep the process alive just to fire a notification.
     notifyTimer.unref?.();
+  }
+
+  pi.on("agent_settled", (_event, ctx) => {
+    pendingSettle = true;
+    scheduleNotification(ctx);
   });
 }
