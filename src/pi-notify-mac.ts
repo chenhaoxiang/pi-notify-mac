@@ -193,7 +193,7 @@ export default function (pi: ExtensionAPI) {
       if (ctx.mode !== "tui") return;
       let readiness: string;
       try {
-        readiness = waitingForInput ? "waiting-for-input" : ctx.hasPendingMessages() ? "pending-messages" : childrenBlock() ?? "eligible";
+        readiness = waitingForInput ? "waiting-for-input" : !ctx.isIdle() ? "running" : ctx.hasPendingMessages() ? "pending-messages" : childrenBlock() ?? "eligible";
       } catch { readiness = "stale-context"; }
       ctx.ui.notify(`Pi notification readiness: ${readiness}\nLast lifecycle decision: ${lastReason}\nVerified Subagents contracts: 0.76.1-fork.1, 0.78.0-fork.1\nEligible means guards permit a settle notification, not task success. A notification request is not proof of macOS delivery.`, "info");
     },
