@@ -36,3 +36,7 @@ Restart Pi after installing; changing disk files does not hot-load existing sess
 ## 中文摘要
 
 本项目使用自己的 SemVer，不冒充社区 fork。`main` 是经过 PR 整合的维护主线。每次发布都固定 tag、来源提交和安装制品，附 SHA-256 校验，下载回读后再次做不调用真实模型的隔离加载验证。英文说明为默认入口，中文说明同步维护。
+
+## Manifest consumer contract
+
+For new releases, release-manifest.json must include schemaVersion: 1, repository as the canonical https://github.com/owner/repo URL, version, tag, exact sourceCommit and 64-hex packageSha256. The package filename is recorded as package. Do not replace published assets to repair metadata: preserve the original and use a separately named, checksum-bound projection only when the source/package identity is unchanged; label that projection as supplementary, not original. The 2026-10-14 installation closeout records the bounded repair. Monitor tag association is not byte verification or process hot-load proof.
