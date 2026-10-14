@@ -17,10 +17,10 @@ A macOS completion-notification extension for Pi. After a session finishes retri
 Install the fixed release as a standard Pi package:
 
 ```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.0
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1
 ```
 
-Use `@main` only when deliberately following the moving branch. Restart Pi after installation. An active Subagents 0.76.1 runtime may reject mixed-module `/reload`; never force-stop active sessions for this upgrade. Inspect packages with `pi list`; remove this source with `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.0`. Releases also support checksum-verified extraction to a permanent local package directory.
+Use `@main` only when deliberately following the moving branch. Restart Pi after installation. An active Subagents 0.76.1 runtime may reject mixed-module `/reload`; never force-stop active sessions for this upgrade. Inspect packages with `pi list`; remove this source with `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1`. Releases also support checksum-verified extraction to a permanent local package directory.
 
 ### Manual installation (alternative)
 
@@ -33,7 +33,7 @@ Use either manual discovery or package installation, not both.
 
 ## Releases and maintenance
 
-Current packaged release: **0.2.0**. This is an original project using ordinary SemVer and `v<version>` tags. `main` is the PR-managed release branch; there is no fictional community upstream or `upstream-main` branch. The historical v0.0.1 release remains available.
+Current packaged release: **0.2.1**. This is an original project using ordinary SemVer and `v<version>` tags. `main` is the PR-managed release branch; there is no fictional community upstream or `upstream-main` branch. The historical v0.0.1 release remains available.
 
 [GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) include an installable tarball, source manifest, and `SHA256SUMS`. Verify the assets before installing them. GitHub release does not imply npm publication. See [release maintenance](docs/releasing.md).
 
@@ -76,6 +76,10 @@ Run `npm test` with Node 24 (or a version supporting `stripTypeScriptTypes` and 
 ## Notification readiness
 
 `/notify-status` reads current guards and the last lifecycle decision without sending a system notification, bell or model request. It distinguishes pending messages, active children, unverified child state, grace delay and notification requested. Eligible does not mean all tasks succeeded; notification requested does not prove macOS delivered it. Current pinned producer checks cover both Subagents 0.76.1-fork.1 and 0.78.0-fork.1. See [diagnostics and compatibility](docs/notification-diagnostics.md).
+
+## Resuming after UI
+
+A blocking UI panel pauses, rather than loses, an unsent settled reminder. On close, the fresh context must still be idle, without pending messages or active/unknown children; only then is a new grace scheduled. New runs/session replacement and delivery retire the intent. See [resumption contract](docs/settled-ui-resume.md).
 
 ## License
 

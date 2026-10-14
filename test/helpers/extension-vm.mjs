@@ -96,11 +96,12 @@ export async function harness(source, options = {}) {
     handlers.set(event, fn);
     return () => handlers.delete(event);
   } });
-  const state = { mode: 'tui', sessionFile: OWNER, sessionId: 'fallback-owner', pending: false, stale: false };
+  const state = { mode: 'tui', sessionFile: OWNER, sessionId: 'fallback-owner', pending: false, stale: false, idle: true };
   const ctx = {
     ui: { notify: (message, level) => notifications.push({ message, level }) },
     get mode() { return state.mode; },
     hasPendingMessages: () => { if (state.stale) throw new Error('fixture stale'); return state.pending; },
+    isIdle: () => { if (state.stale) throw new Error('fixture stale'); return state.idle; },
     sessionManager: { getSessionFile: () => state.sessionFile, getSessionId: () => state.sessionId },
   };
   const addEntry = (parent, name) => {

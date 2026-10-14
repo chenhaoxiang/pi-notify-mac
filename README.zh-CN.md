@@ -17,10 +17,10 @@
 推荐固定 GitHub 发布版本：
 
 ```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.0
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1
 ```
 
-需要跟踪维护主线时才使用 `@main`。安装后重启 Pi；活跃的 Subagents 0.76.1 运行时可能拒绝混用新旧模块的 `/reload`，不要为升级强制停止会话。用 `pi list` 查看来源，用 `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.0` 卸载。也可下载Release、校验后解压到永久目录，作为固定本地package安装。
+需要跟踪维护主线时才使用 `@main`。安装后重启 Pi；活跃的 Subagents 0.76.1 运行时可能拒绝混用新旧模块的 `/reload`，不要为升级强制停止会话。用 `pi list` 查看来源，用 `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1` 卸载。也可下载Release、校验后解压到永久目录，作为固定本地package安装。
 
 ### 手动安装（备选）
 
@@ -33,7 +33,7 @@ cp src/pi-notify-mac.ts ~/.pi/agent/extensions/pi-notify-mac.ts
 
 ## 发布与维护
 
-当前制品版本为 **0.2.0**。本项目是原创扩展，使用普通 SemVer 和 `v<版本>` tag，不虚构社区上游或 `upstream-main`。`main` 是经过 PR 更新的发布主线，历史 v0.0.1 保留不变。
+当前制品版本为 **0.2.1**。本项目是原创扩展，使用普通 SemVer 和 `v<版本>` tag，不虚构社区上游或 `upstream-main`。`main` 是经过 PR 更新的发布主线，历史 v0.0.1 保留不变。
 
 [GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) 提供可安装包、来源清单和 `SHA256SUMS`，校验后再安装。GitHub 发布不等于 npm 发布。完整流程见[维护说明](docs/releasing.md)。
 
@@ -76,6 +76,10 @@ pi -e ./src/pi-notify-mac.ts
 ## 查看通知状态
 
 `/notify-status` 只读检查当前保护条件和最近一次生命周期判断，不发送系统通知、响铃或模型请求。状态区分待处理消息、活跃子任务、子任务状态无法核验、延迟等待和已请求通知。满足通知条件不等于所有任务成功，已请求通知也不证明 macOS 已送达。版本核验同时保留 0.76.1-fork.1 并覆盖 0.78.0-fork.1。见[诊断与兼容说明](docs/notification-diagnostics.md)。
+
+## UI 关闭后的提醒恢复
+
+尚未发送的完成提醒遇到阻塞式 UI 时会暂停，不再直接丢弃。关闭 UI 后，必须用当前上下文确认仍空闲、没有待处理消息或活跃/未知子任务，才重新安排可取消的延迟提醒。新任务、会话替换及发送会清除旧意图。见[恢复合同](docs/settled-ui-resume.md)。
 
 ## 许可证
 
