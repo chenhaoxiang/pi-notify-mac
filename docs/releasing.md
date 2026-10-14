@@ -23,7 +23,7 @@ Applies to the independent original project chenhaoxiang/pi-notify-mac.
 3. Run `npm test` without altering frozen baseline fixtures/assertions. Run the pinned producer contract checker against the public Subagents checkout. Inspect package contents and smoke-load in an isolated agent directory without prompts or macOS notifications; real sound/notification/title checks remain manual.
 4. Review the exact diff and merge the PR normally; verify remote main contains the validated head.
 5. Build the package at that exact main SHA using `npm pack --ignore-scripts --pack-destination tmp/release`. Extract the tarball and load it through isolated Pi RPC with a synthetic loopback model and no prompts. Include both README files and this runbook.
-6. Generate `release-manifest.json` with repository, version, exact source commit, tarball filename and SHA-256; community fields are null. Generate `SHA256SUMS` for the tarball and manifest.
+6. Generate `release-manifest.json` with repository, version, exact source commit, tarball filename and SHA-256; community fields are null. Generate `SHA256SUMS` for the tarball and manifest. Required fields and canonical forms are specified below in Manifest consumer contract: schemaVersion: 1, canonical repository URL, version, tag, sourceCommit, package and packageSha256.
 7. Create the public GitHub Release `v<version>` targeting that exact SHA with the package, provenance and checksums attached. No npm publication is implied.
 8. Download the published assets afresh, check `shasum -a 256 -c SHA256SUMS`, and repeat isolated RPC loading. Release notes record PR, validation and remaining limitations.
 
@@ -36,3 +36,7 @@ Restart Pi after installing; changing disk files does not hot-load existing sess
 ## 中文摘要
 
 本项目使用自己的 SemVer，不冒充社区 fork。`main` 是经过 PR 整合的维护主线。每次发布都固定 tag、来源提交和安装制品，附 SHA-256 校验，下载回读后再次做不调用真实模型的隔离加载验证。英文说明为默认入口，中文说明同步维护。
+
+## Manifest consumer contract
+
+For new releases, release-manifest.json must include schemaVersion: 1, repository as the canonical https://github.com/owner/repo URL, version, tag, exact sourceCommit and 64-hex packageSha256. The package filename is recorded as package. Do not replace published assets to repair metadata: preserve the original and use a separately named, checksum-bound projection only when the source/package identity is unchanged; label that projection as supplementary, not original. The 2026-10-14 installation closeout records the bounded repair. A maintenance monitor resolving tag association provides neither byte verification nor process hot-load proof.
