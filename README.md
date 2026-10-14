@@ -17,10 +17,10 @@ A macOS completion-notification extension for Pi. After a session finishes retri
 Install the fixed release as a standard Pi package:
 
 ```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.1.1
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.0
 ```
 
-Use `@main` only when deliberately following the moving branch. Restart Pi after installation. An active Subagents 0.76.1 runtime may reject mixed-module `/reload`; never force-stop active sessions for this upgrade. Inspect packages with `pi list`; remove this source with `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.1.1`. Releases also support checksum-verified extraction to a permanent local package directory.
+Use `@main` only when deliberately following the moving branch. Restart Pi after installation. An active Subagents 0.76.1 runtime may reject mixed-module `/reload`; never force-stop active sessions for this upgrade. Inspect packages with `pi list`; remove this source with `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.0`. Releases also support checksum-verified extraction to a permanent local package directory.
 
 ### Manual installation (alternative)
 
@@ -33,7 +33,7 @@ Use either manual discovery or package installation, not both.
 
 ## Releases and maintenance
 
-Current packaged release: **0.1.1**. This is an original project using ordinary SemVer and `v<version>` tags. `main` is the PR-managed release branch; there is no fictional community upstream or `upstream-main` branch. The historical v0.0.1 release remains available.
+Current packaged release: **0.2.0**. This is an original project using ordinary SemVer and `v<version>` tags. `main` is the PR-managed release branch; there is no fictional community upstream or `upstream-main` branch. The historical v0.0.1 release remains available.
 
 [GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) include an installable tarball, source manifest, and `SHA256SUMS`. Verify the assets before installing them. GitHub release does not imply npm publication. See [release maintenance](docs/releasing.md).
 
@@ -59,7 +59,7 @@ macOS notification permissions and terminal bell/title preferences may affect wh
 
 The extension listens to `agent_settled`, not the earlier `agent_end`. It suppresses notification while messages are pending or same-session top-level/nested Subagents are queued/running; it reads disk status so restoration does not depend on pairing start/completion events. Unknown/corrupt state suppresses rather than guesses. New agents, session changes and shutdown cancel the grace timer, and readiness is checked again at dispatch.
 
-Only TUI mode gets notification/title/bell effects; RPC, JSON and print stay quiet. This is an idle/ready-for-input hint, not proof that every child succeeded or arbitrary external work finished. Notification failures must not interfere with the main session. Subagents support is bounded to the inspected 0.76.1-fork.1 source/schema; see [behavior and migration contract](docs/notification-completion.md).
+Only TUI mode gets notification/title/bell effects; RPC, JSON and print stay quiet. This is an idle/ready-for-input hint, not proof that every child succeeded or arbitrary external work finished. Notification failures must not interfere with the main session. Subagents support is bounded to the inspected 0.76.1-fork.1 and 0.78.0-fork.1 source/schema contracts; see [behavior and migration contract](docs/notification-completion.md).
 
 ## Development and verification
 
@@ -71,8 +71,12 @@ pi -e ./src/pi-notify-mac.ts
 
 Run `npm test` with Node 24 (or a version supporting `stripTypeScriptTypes` and VM modules). Tests preserve the released/manual source baselines and virtualize filesystem, timers, process output and notification transport: no real notification, sound, session data or model request.
 
-`node scripts/check-subagents-contract.mjs --repo <subagents-checkout>` verifies five public source hashes at the fixed 0.76.1-fork.1 commit plus state/ownership/layout/batcher contracts. CI runs both checks without installing or executing Subagents. Isolated Pi RPC startup verifies registration/load only; actual notification/sound/title delivery and every running session’s hot-load still need separate manual acceptance.
+`node scripts/check-subagents-contract.mjs --repo <subagents-checkout>` verifies five public source hashes at the fixed 0.76.1-fork.1 commit; add `--fixture subagents-0.78.0-contract.json` for the current 0.78.0-fork.1 commit plus state/ownership/layout/batcher contracts. CI runs both checks without installing or executing Subagents. Isolated Pi RPC startup verifies registration/load only; actual notification/sound/title delivery and every running session’s hot-load still need separate manual acceptance.
 
 ## License
 
 MIT
+
+## Notification readiness
+
+`/notify-status` reads current guards and the last lifecycle decision without sending a system notification, bell or model request. It distinguishes pending messages, active children, unverified child state, grace delay and notification requested. Eligible does not mean all tasks succeeded; notification requested does not prove macOS delivered it. Current pinned producer checks cover both Subagents 0.76.1-fork.1 and 0.78.0-fork.1. See [diagnostics and compatibility](docs/notification-diagnostics.md).

@@ -6,6 +6,8 @@ Do not trigger real notifications, sounds, model requests or edit machine-wide P
 
 ## Documentation map
 
+- `docs/notification-diagnostics.md`: read-only readiness/last-decision command, 0.76.1/0.78.0 pinned compatibility and synthetic regression scope.
+
 - `README.md` / `README.zh-CN.md`: default English and complete Chinese installation/configuration/verification boundaries.
 - `docs/releasing.md`: per-version releases, asset verification, permanent installation paths and rollback.
 - `docs/notification-completion.md`: completion guards, pinned Subagents0.76.1 contract, synthetic verification, single-source migration and acceptance boundaries.
