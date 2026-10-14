@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm test
-      - run: git diff --check
+      - run: git show --format= --check HEAD
   subagents-contract:
     runs-on: ubuntu-latest
     strategy:

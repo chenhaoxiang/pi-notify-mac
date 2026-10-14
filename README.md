@@ -59,7 +59,7 @@ macOS notification permissions and terminal bell/title preferences may affect wh
 
 The extension listens to `agent_settled`, not the earlier `agent_end`. It suppresses notification while messages are pending or same-session top-level/nested Subagents are queued/running; it reads disk status so restoration does not depend on pairing start/completion events. Unknown/corrupt state suppresses rather than guesses. New agents, session changes and shutdown cancel the grace timer, and readiness is checked again at dispatch.
 
-Only TUI mode gets notification/title/bell effects; RPC, JSON and print stay quiet. This is an idle/ready-for-input hint, not proof that every child succeeded or arbitrary external work finished. Notification failures must not interfere with the main session. Subagents support is bounded to the inspected 0.76.1-fork.1 and 0.78.0-fork.1 source/schema contracts; see [behavior and migration contract](docs/notification-completion.md).
+Only TUI mode gets notification/title/bell effects; RPC, JSON and print stay quiet. This is an idle/ready-for-input hint, not proof that every child succeeded or arbitrary external work finished. Notification failures must not interfere with the main session. Subagents support is bounded to the inspected 0.76.1-fork.1 and 0.78.0-fork.1 contracts; see [current diagnostics and compatibility](docs/notification-diagnostics.md). Any blocking extension UI prompt also suppresses completion until it closes.
 
 ## Development and verification
 
@@ -73,10 +73,10 @@ Run `npm test` with Node 24 (or a version supporting `stripTypeScriptTypes` and 
 
 `node scripts/check-subagents-contract.mjs --repo <subagents-checkout>` verifies five public source hashes at the fixed 0.76.1-fork.1 commit; add `--fixture subagents-0.78.0-contract.json` for the current 0.78.0-fork.1 commit plus state/ownership/layout/batcher contracts. CI runs both checks without installing or executing Subagents. Isolated Pi RPC startup verifies registration/load only; actual notification/sound/title delivery and every running session’s hot-load still need separate manual acceptance.
 
-## License
-
-MIT
-
 ## Notification readiness
 
 `/notify-status` reads current guards and the last lifecycle decision without sending a system notification, bell or model request. It distinguishes pending messages, active children, unverified child state, grace delay and notification requested. Eligible does not mean all tasks succeeded; notification requested does not prove macOS delivered it. Current pinned producer checks cover both Subagents 0.76.1-fork.1 and 0.78.0-fork.1. See [diagnostics and compatibility](docs/notification-diagnostics.md).
+
+## License
+
+MIT
