@@ -6,6 +6,8 @@ Do not trigger real notifications, sounds, model requests or edit machine-wide P
 
 ## Documentation map
 
+- `docs/maintenance/2026-10-14-audited-bugfix-installed.md`: 0.2.1 red/green defect closure, exact-review-before-merge, main CI, schema1 original Release, installed bytes/native synthetic recheck and activation limits.
+
 - `docs/settled-ui-resume.md`: one pending settle intent, fresh UI-end context, renewed grace and complete current-state guard/invalidation regression.
 
 - `docs/maintenance/2026-10-14-optimization-installed.md`: 0.2.0 exact-source normal merge, CI, fresh-download checksums, installed bytes, combined loader and rollback/activation boundaries.
