@@ -9,6 +9,7 @@ verified_by: manual
 owner: chx
 updated: 2026-10-19
 reviewed: 2026-10-19
+manual_smoke: partial
 release: 0.3.0
 ---
 
@@ -74,6 +75,17 @@ The next highest-value validation is a real macOS smoke, which is intentionally 
 4. Answer/cancel the prompt and confirm repeated sound, alert subprocesses and late focus work stop.
 5. Use “去终端处理” with multiple Terminal.app/iTerm windows and verify the originating tab; record background, missing-tty, tmux and cross-Space behavior as limitations rather than exact-focus success.
 6. Restart a disposable/current Pi session voluntarily before considering old-session behavior accepted; no live session is force-stopped by this checklist.
+
+### 2026-10-19 paired manual result
+
+In a newly opened test session, the user supplied the following observations:
+
+- Round 1: the user explicitly reported seeing and closing the reminder. Asked jointly whether the original question remained usable and whether the sound/quieting behavior was normal, the user replied “是好的”; the question also returned “测试 A” normally. This is a combined user confirmation, not separately instrumented visual/audio assertions.
+- Round 2: instructed to switch to another existing Terminal window/tab and click “去终端处理”, the user selected “跳回了正确的窗口和标签”. This supports correct focus in that one scenario, not every Terminal instance or window layout.
+
+The private local session journal records the two normal test answers at `2026-10-18T22:07:41.171Z` and `2026-10-18T22:11:53.342Z`; the visual/audio observations came from the user. Only synthetic test labels and timestamps are summarized here; no private transcript or machine settings are attached. This is user-observed manual evidence, not an independently instrumented OS-delivery receipt.
+
+Not covered by this paired run: the full 30-second repeat interval, answering while the system alert is still open (automatic close/sound cancellation), standard confirm/select/input/editor prompt types, iTerm or other terminal types, tmux, cross-Space/minimized windows, abort/error cleanup, or hot-loading an already-running session. Those remain open boundaries.
 
 ### Future optimization candidates
 
