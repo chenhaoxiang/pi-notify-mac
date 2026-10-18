@@ -22,7 +22,7 @@ export async function harness(source, options = {}) {
   const dirs = new Map([[top, []], [nested, []]]);
   const files = new Map();
   const reads = [], errors = [], outputs = [], calls = [], delays = [];
-  const handlers = new Map(), timers = new Map(), commands = new Map(), notifications = [];
+  const handlers = new Map(), timers = new Map(), commands = new Map(), notifications = [], bus = new Map();
   let now = 0, nextId = 0, unrefs = 0;
   const clock = {
     setTimeout(fn, delay) {
@@ -65,41 +65,71 @@ export async function harness(source, options = {}) {
     },
   };
   const fakeProcess = {
-    env, cwd: () => '/fixtures/demo', getuid: () => uid,
-    stdout: { write: value => { outputs.push(String(value)); return true; } },
+    env, platform: options.platform ?? 'darwin', pid: 100, ppid: 99, cwd: () => '/fixtures/demo', getuid: () => uid,
+    stdout: { isTTY: options.isTTY ?? true, write: value => { outputs.push(String(value)); return true; } },
   };
   const fakeOs = { tmpdir: () => '/fixtures/tmp', userInfo: () => ({ uid }) };
   const context = createContext({
     process: fakeProcess, console: { error: (...args) => errors.push(args.map(String).join(' ')) },
-    setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout,
+    setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout, AbortController, AbortSignal,
   });
   const modules = {
     'node:fs': { default: fakeFs },
     'node:os': { default: fakeOs },
     'node:path': { default: fakePath },
-    'node:child_process': { execFile: (command, args, callback) => {
-      calls.push({ command, args }); callback(options.deliveryError);
+    'node:child_process': { execFile: (command, args, config, callback) => {
+      if (typeof config === 'function') { callback = config; config = {}; }
+      if (options.spawnThrows) throw new Error('synthetic process unavailable');
+      const call = { command, args, config, finished: false, aborted: false };
+      const abort = () => { call.aborted = true; call.finish(new Error('synthetic abort')); };
+      call.finish = (error = null, stdout = '') => {
+        if (call.finished) return;
+        call.finished = true;
+        config.signal?.removeEventListener('abort', abort);
+        callback(error, stdout, '');
+      };
+      calls.push(call);
+      config.signal?.addEventListener('abort', abort, { once: true });
+      if (config.signal?.aborted) abort();
+      else if (command === 'ps' && !options.deferPs) call.finish(options.psError, (options.ttys?.shift() ?? 'ttys008') + '\n');
+      else if (command === 'osascript' && args.at(-1).startsWith('display notification')) call.finish(options.deliveryError);
+      else if (command === 'osascript' && !args.at(-1).startsWith('display alert') && !options.deferFocus) call.finish(options.focusError, options.focusResult ?? 'ok');
+      return call;
     } },
   };
   const text = source instanceof URL ? await readFile(source, 'utf8') : source;
-  const module = new SourceTextModule(stripTypeScriptTypes(text), { context });
-  await module.link(specifier => {
+  const identifier = (source instanceof URL ? source : new URL('../../src/pi-notify-mac.ts', import.meta.url)).href;
+  const module = new SourceTextModule(stripTypeScriptTypes(text), { context, identifier });
+  const cached = new Map();
+  const link = async (specifier, ref) => {
+    const key = specifier.startsWith('.') ? new URL(specifier, ref.identifier).href : specifier;
+    if (cached.has(key)) return cached.get(key);
+    let linked;
     const values = modules[specifier];
-    if (!values) throw new Error(`Fixture refuses unapproved import ${specifier}`);
-    return new SyntheticModule(Object.keys(values), function () {
+    if (values) linked = new SyntheticModule(Object.keys(values), function () {
       for (const [key, value] of Object.entries(values)) this.setExport(key, value);
     }, { context });
-  });
+    else if (['./input-reminder.ts', './terminal-focus.ts'].includes(specifier)) {
+      const file = new URL(specifier, ref.identifier);
+      linked = new SourceTextModule(stripTypeScriptTypes(await readFile(file, 'utf8')), { context, identifier: file.href });
+      cached.set(key, linked);
+      await linked.link(link);
+    } else throw new Error(`Fixture refuses unapproved import ${specifier}`);
+    cached.set(key, linked);
+    return linked;
+  };
+  await module.link(link);
   await module.evaluate();
-  module.namespace.default({ registerCommand: (name, command) => commands.set(name, command), on: (event, fn) => {
+  module.namespace.default({ events: { on: (name, fn) => { bus.set(name, fn); return () => bus.delete(name); } }, registerCommand: (name, command) => commands.set(name, command), on: (event, fn) => {
     if (handlers.has(event)) throw new Error(`Duplicate fixture registration ${event}`);
     handlers.set(event, fn);
     return () => handlers.delete(event);
   } });
-  const state = { mode: 'tui', sessionFile: OWNER, sessionId: 'fallback-owner', pending: false, stale: false, idle: true };
+  const state = { mode: 'tui', hasUI: true, sessionFile: OWNER, sessionId: 'fallback-owner', pending: false, stale: false, idle: true };
   const ctx = {
     ui: { notify: (message, level) => notifications.push({ message, level }) },
     get mode() { return state.mode; },
+    get hasUI() { if (state.stale) throw new Error('fixture stale'); return state.hasUI; },
     hasPendingMessages: () => { if (state.stale) throw new Error('fixture stale'); return state.pending; },
     isIdle: () => { if (state.stale) throw new Error('fixture stale'); return state.idle; },
     sessionManager: { getSessionFile: () => state.sessionFile, getSessionId: () => state.sessionId },
@@ -111,7 +141,8 @@ export async function harness(source, options = {}) {
   };
   return {
     state, clock, dirs, files, reads, errors, outputs, calls, delays, handlers, commands, notifications, ctx, top, nested, root,
-    async emit(name) { const fn = handlers.get(name); if (fn) await fn({ type: name }, ctx); },
+    async emit(name, fields = {}) { const fn = handlers.get(name); if (fn) await fn({ type: name, ...fields }, ctx); },
+    emitBus(name, data) { return bus.get(name)?.(data); },
     run(name, status = {}) {
       addEntry(top, name);
       files.set(path.join(top, name, 'status.json'), typeof status === 'string' ? status : JSON.stringify(status));

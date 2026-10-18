@@ -2,84 +2,85 @@
 
 English | [中文](README.zh-CN.md)
 
-A macOS completion-notification extension for Pi. After a session finishes retries, compaction, and queued work and reaches `agent_settled`, it sends a macOS notification, plays the configured sound, updates the terminal title to `✓ <project>`, and emits a terminal bell. Useful when several Pi sessions run in different terminals.
+One macOS notification package for Pi: completion notifications and waiting-for-input reminders. After a session settles, it sends a macOS notification, plays Glass, updates the terminal title and rings the terminal. When a real TUI prompt needs a person, it shows a cancellable warning alert, plays Hero, repeats every 30 seconds and can focus the originating Terminal/iTerm tab. It never answers or approves the prompt.
 
 ## Requirements
 
-- macOS.
-- Pi with extension/package support (`pi install`).
-- `osascript`, included with macOS.
+- macOS and Pi with extension/package support; input lifecycle verified against Pi 1.3.0-fork.1.
+- System `osascript` and `afplay`; no additional runtime dependency.
 
-## Install
+## Install and migrate
 
-**Before installing, preserve any existing manual copy and move it outside `~/.pi/agent/extensions/`.** Do not enable both the manual file and the package: that produces duplicate notifications. Renaming a file inside a still-discovered extension directory is not a reliable disable method.
+Candidate version: **0.3.0**. Publication is complete only after PR/CI, immutable Release and checksum verification; historical releases remain unchanged.
 
-Install the fixed release as a standard Pi package:
-
-```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1
-```
-
-Use `@main` only when deliberately following the moving branch. Restart Pi after installation. An active Subagents 0.76.1 runtime may reject mixed-module `/reload`; never force-stop active sessions for this upgrade. Inspect packages with `pi list`; remove this source with `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1`. Releases also support checksum-verified extraction to a permanent local package directory.
-
-### Manual installation (alternative)
+For a new installation, use the fixed Release:
 
 ```bash
-mkdir -p ~/.pi/agent/extensions
-cp src/pi-notify-mac.ts ~/.pi/agent/extensions/pi-notify-mac.ts
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
 ```
 
-Use either manual discovery or package installation, not both.
+**Existing manual installations must migrate first.** From a trusted checksum-verified extracted package, run:
 
-## Releases and maintenance
+```bash
+sh install.sh
+```
 
-Current packaged release: **0.2.1**. This is an original project using ordinary SemVer and `v<version>` tags. `main` is the PR-managed release branch; there is no fictional community upstream or `upstream-main` branch. The historical v0.0.1 release remains available.
+This installs the complete package under the personal agent directory, backs up settings plus old `approval-notify.ts`/`pi-notify-mac.ts` files outside discovery, removes their exact declarations and selects a single package source. Optional `PI_AGENT_DIR` or `PI_CODING_AGENT_DIR` selects an isolated agent directory. Unrelated settings and existing package resource filters are preserved; conflicting installed bytes/filters stop migration.
 
-[GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) include an installable tarball, source manifest, and `SHA256SUMS`. Verify the assets before installing them. GitHub release does not imply npm publication. See [release maintenance](docs/releasing.md).
+**Do not copy only the entry file**: it now imports sibling modules. Do not enable the package and an old manual extension together. Renaming an extension inside the discovery directory is not sufficient. See [migration, recovery and verification boundaries](docs/input-reminders.md).
+
+Use `@main` only to deliberately track a moving branch. Use `pi list` to inspect selected sources and `pi remove <source>` to remove the exact installed source. Restart voluntarily after installation; changing disk files does not hot-load existing sessions. An active Subagents runtime may reject mixed-module `/reload`; never force-stop tasks for this upgrade.
 
 ## Configuration
 
-The default notification sound is `Glass`. Change it for one session:
+Completion and input reminders are independently enabled by default:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `PI_NOTIFY_MAC_COMPLETION` | enabled | `0`, `false` or `off` disables completion effects only |
+| `PI_NOTIFY_MAC_SOUND` | `Glass` | Completion sound; empty disables sound, not title/bell |
+| `PI_NOTIFY_MAC_GRACE_MS` | `6000` | Cancellable completion grace; zero removes delay, not guards |
+| `PI_NOTIFY_MAC_INPUT` | enabled | Same disable values, input effects only |
+| `PI_NOTIFY_MAC_INPUT_SOUND` | `Hero` | System sound name; empty keeps the alert but disables sound |
+| `PI_NOTIFY_MAC_INPUT_DELAY_MS` | `250` | Cancellable delay before an input alert |
+| `PI_NOTIFY_MAC_INPUT_REPEAT_MS` | `30000` | Sound repeat while the alert is open; zero disables repeats |
 
 ```bash
-PI_NOTIFY_MAC_SOUND=Ping pi
+PI_NOTIFY_MAC_INPUT=0 pi
+PI_NOTIFY_MAC_INPUT_SOUND='' pi
+PI_NOTIFY_MAC_COMPLETION=0 pi
 ```
 
-Disable the sound:
-
-```bash
-PI_NOTIFY_MAC_SOUND='' pi
-```
-
-A cancellable 6000ms grace lets asynchronous result delivery wake the parent before notification. Configure it with `PI_NOTIFY_MAC_GRACE_MS=8000 pi`; `0` removes the delay, not the guards. Only non-negative decimal integer milliseconds up to 2147483647 are accepted; invalid values use the default. If a Subagents completion batch window is enlarged, enlarge the grace too. The delay is not an absolute scheduling guarantee.
-
-macOS notification permissions and terminal bell/title preferences may affect what is visible or audible.
+Disable values trim whitespace and ignore case. Milliseconds accept decimal integers from 0 to 2147483647; invalid values use defaults. Nonzero input repeats below 1000ms use 30000ms to avoid process storms. A larger Subagents completion batch window may require a larger completion grace; no fixed delay guarantees arbitrary scheduling. macOS permissions and terminal preferences affect actual presentation.
 
 ## How it works
 
-The extension listens to `agent_settled`, not the earlier `agent_end`. It suppresses notification while messages are pending or same-session top-level/nested Subagents are queued/running; it reads disk status so restoration does not depend on pairing start/completion events. Unknown/corrupt state suppresses rather than guesses. New agents, session changes and shutdown cancel the grace timer, and readiness is checked again at dispatch.
+Completion listens to `agent_settled`, not `agent_end`. It suppresses effects for pending messages or same-session queued/running top-level/nested children, determines ownership from disk/session-file identity and treats unknown/corrupt state conservatively. Dispatch rechecks guards. This is an idle hint, not proof of every child succeeding or arbitrary external work ending. Existing four frozen delivery helpers and assertions are retained.
 
-Only TUI mode gets notification/title/bell effects; RPC, JSON and print stay quiet. This is an idle/ready-for-input hint, not proof that every child succeeded or arbitrary external work finished. Notification failures must not interfere with the main session. Subagents support is bounded to the inspected 0.76.1-fork.1 and 0.78.0-fork.1 contracts; see [current diagnostics and compatibility](docs/notification-diagnostics.md). Any blocking extension UI prompt also suppresses completion until it closes.
+Input reminders follow actual `ui_prompt_start/end` intervals. Confirm/select/input/editor qualify; custom questions qualify only through the opaque `pi:input-required` lifecycle from `rpiv-ask-user-question` 0.1.4-fork.5 or a compatible producer. Generic custom UI, including unrelated overlays during a running question, and bare tool calls stay silent. Older question packages still work but do not emit this optional precise reminder signal. One reminder per outer interval; resolution, new runs, session replacement and shutdown cancel owned timers and abort subprocesses. Dismissing the alert never answers the TUI. Alerts omit prompt titles, question text, options, answers and tool arguments. Terminal PID/tty lookup is asynchronous and bounded; no different Terminal instance is activated as pretend success. Other terminals offer explicitly app-only focus. See [input behavior and migration](docs/input-reminders.md).
 
-## Development and verification
-
-Source: `src/pi-notify-mac.ts`. Try it without installation:
-
-```bash
-pi -e ./src/pi-notify-mac.ts
-```
-
-Run `npm test` with Node 24 (or a version supporting `stripTypeScriptTypes` and VM modules). Tests preserve the released/manual source baselines and virtualize filesystem, timers, process output and notification transport: no real notification, sound, session data or model request.
-
-`node scripts/check-subagents-contract.mjs --repo <subagents-checkout>` verifies five public source hashes at the fixed 0.76.1-fork.1 commit; add `--fixture subagents-0.78.0-contract.json` for the current 0.78.0-fork.1 commit plus state/ownership/layout/batcher contracts. CI runs both checks without installing or executing Subagents. Isolated Pi RPC startup verifies registration/load only; actual notification/sound/title delivery and every running session’s hot-load still need separate manual acceptance.
+Effects are macOS TUI-only; RPC/JSON/print and no-UI input contexts stay quiet. Any blocking UI suppresses completion; closing it rechecks a fresh context and can renew grace for an unsent settle reminder. See [resumption contract](docs/settled-ui-resume.md).
 
 ## Notification readiness
 
-`/notify-status` reads current guards and the last lifecycle decision without sending a system notification, bell or model request. It distinguishes pending messages, active children, unverified child state, grace delay and notification requested. Eligible does not mean all tasks succeeded; notification requested does not prove macOS delivered it. Current pinned producer checks cover both Subagents 0.76.1-fork.1 and 0.78.0-fork.1. See [diagnostics and compatibility](docs/notification-diagnostics.md).
+`/notify-status` is read-only: current completion guards, last lifecycle decision, both enable switches and input state. It sends no system alert, sound, bell or model request. Eligible does not mean success; an effect request is not macOS delivery proof. Pinned Subagents contracts cover 0.76.1-fork.1 and 0.78.0-fork.1, not every future release. See [diagnostics and compatibility](docs/notification-diagnostics.md).
 
-## Resuming after UI
+## Development and verification
 
-A blocking UI panel pauses, rather than loses, an unsent settled reminder. On close, the fresh context must still be idle, without pending messages or active/unknown children; only then is a new grace scheduled. New runs/session replacement and delivery retire the intent. See [resumption contract](docs/settled-ui-resume.md).
+Try the complete source tree without installation:
+
+```bash
+pi -e ./src/pi-notify-mac.ts
+npm test
+node scripts/check-subagents-contract.mjs --repo <subagents-checkout>
+node scripts/check-subagents-contract.mjs --repo <subagents-checkout> --fixture subagents-0.78.0-contract.json
+```
+
+Tests require Node 24 or another version supporting TypeScript erasure and VM modules. Frozen released/manual fixtures and assertions remain unchanged. Runtime tests virtualize FS, subprocesses, timers and terminal output; installer tests use disposable directories under `tmp/`. No real model, notification, sound or private run state is used. CI verifies both fixed public producer contracts without executing Subagents. Isolated Pi RPC verifies package registration/loading only, not actual macOS delivery or hot-loading live sessions.
+
+## Releases and maintenance
+
+This is an original project, using ordinary SemVer and `v<version>` tags. `main` is PR-managed; no fictional community upstream is claimed. [GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) carry the installable tarball, exact-source manifest and SHA256SUMS. Verify fresh downloads before installation. A GitHub Release is not npm publication. See [release maintenance](docs/releasing.md) and the historical [completion/migration contract](docs/notification-completion.md).
 
 ## License
 
