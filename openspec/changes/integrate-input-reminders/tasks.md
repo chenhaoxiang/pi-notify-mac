@@ -13,5 +13,5 @@
 - [x] 3.3 Update both READMEs, migration runbook and AGENTS map.
 
 ## 4. Delivery
-- [ ] 4.1 Commit and independently review the exact head; resolve must-fix findings.
-- [ ] 4.2 Complete authorized PR/main delivery and record release/installation boundaries.
+- [x] 4.1 Commit and independently review the exact head; resolve must-fix findings.
+- [x] 4.2 Complete authorized PR/main delivery and record release/installation boundaries.

@@ -11,7 +11,7 @@ One macOS notification package for Pi: completion notifications and waiting-for-
 
 ## Install and migrate
 
-Candidate version: **0.3.0**. Publication is complete only after PR/CI, immutable Release and checksum verification; historical releases remain unchanged.
+Current released version: **0.3.0**. It is published from the merged main source with an immutable package, source manifest and checksums. Historical releases remain unchanged.
 
 For a fresh installation, use the fixed Release and let Pi manage the first settings write:
 

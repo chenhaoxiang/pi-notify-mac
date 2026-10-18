@@ -23,9 +23,13 @@ Applies to the independent original project chenhaoxiang/pi-notify-mac.
 3. Run `npm test` without altering frozen baseline fixtures/assertions. Run the pinned producer contract checker against the public Subagents checkout. Inspect package contents and smoke-load in an isolated agent directory without prompts or macOS notifications; real sound/notification/title checks remain manual.
 4. Review the exact diff and merge the PR normally; verify remote main contains the validated head.
 5. Build the package at that exact main SHA using `npm pack --ignore-scripts --pack-destination tmp/release`. Extract the tarball and load it through isolated Pi RPC with a synthetic loopback model and no prompts. Include both README files and this runbook.
-6. Generate `release-manifest.json` with repository, version, exact source commit, tarball filename and SHA-256; community fields are null. Generate `SHA256SUMS` for the tarball and manifest. Required fields and canonical forms are specified below in Manifest consumer contract: schemaVersion: 1, canonical repository URL, version, tag, sourceCommit, package and packageSha256.
+6. Generate `release-manifest.json` with repository, version, exact source commit, tarball filename and SHA-256; community fields are null. Generate `SHA256SUMS` from inside `tmp/release` so it contains flat asset filenames, not build-directory prefixes. Verify it again in a different download directory. Required fields and canonical forms are specified below in Manifest consumer contract: schemaVersion: 1, canonical repository URL, version, tag, sourceCommit, package and packageSha256.
 7. Create the public GitHub Release `v<version>` targeting that exact SHA with the package, provenance and checksums attached. No npm publication is implied.
 8. Download the published assets afresh, check `shasum -a 256 -c SHA256SUMS`, and repeat isolated RPC loading. Release notes record PR, validation and remaining limitations.
+
+## 0.3.0 checksum supplement
+
+The original 0.3.0 `SHA256SUMS` contains build-relative paths and is retained unchanged with the original tarball and manifest. Download all four assets and use the separately appended `DOWNLOAD-SHA256SUMS` for flat-directory verification. It also binds the unchanged original checksum file. See [installed delivery record](maintenance/2026-10-18-input-reminders-installed.md); this is not replacement provenance or permission to overwrite assets.
 
 ## Installation and rollback
 

@@ -6,6 +6,8 @@ Do not trigger real notifications, sounds, model requests or edit machine-wide P
 
 ## Documentation map
 
+- `docs/maintenance/2026-10-18-input-reminders-installed.md`: 0.3.0 exact-head review/merge/CI, immutable assets and flat checksum supplement, single-source installed bytes/legacy backup, and unverified live macOS boundaries.
+
 - `openspec/changes/integrate-input-reminders/`: approved single-package input-reminder behavior, design, migration scope and verification tasks.
 - `docs/input-reminders.md`: cancellable prompt lifecycle, independent controls, bounded/private terminal delivery, complete-package installer and legacy dependency inventory.
 
