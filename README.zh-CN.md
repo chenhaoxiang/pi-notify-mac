@@ -2,84 +2,87 @@
 
 [English](README.md) | 中文
 
-面向 macOS 的 Pi 完成通知扩展。Pi 会话完成重试、上下文压缩和后续队列处理，进入 `agent_settled` 后，会发送系统通知、播放默认的 `Glass` 提示音、将终端标题改为 `✓ <项目名>`，并发出终端响铃。适合同时运行多个 Pi 会话、经常切换终端的场景。
+面向 macOS 的 Pi 通知扩展，一个包负责两类提醒：**任务完成**与**等待人工处理**。任务收尾后发送系统通知、播放 Glass、更新终端标题并响铃；确认、选择或输入界面真正打开后，显示可取消的系统警告窗、播放 Hero，每 30 秒重复提醒，并支持跳回对应 Terminal/iTerm 标签。提醒不会代替你回答，也不授予执行权限。
 
 ## 要求
 
-- macOS；
-- 支持扩展与包管理的 Pi；
-- 系统自带的 `osascript`。
+- macOS 与支持扩展/包管理的 Pi；输入生命周期已按 Pi 1.3.0-fork.1 核对。
+- 系统自带的 `osascript` 和 `afplay`，不新增运行时依赖。
 
-## 安装
+## 安装与迁移
 
-**安装前先保全已有手工副本，并将它移到 `~/.pi/agent/extensions/` 之外。** 两份同时启用会重复通知；只在仍被发现的扩展目录内改个文件名，不是可靠的停用方法。
+候选版本为 **0.3.0**；PR、CI、不可变 Release 与校验回读完成前，不视为已发布。历史版本保持不变。
 
-推荐固定 GitHub 发布版本：
-
-```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1
-```
-
-需要跟踪维护主线时才使用 `@main`。安装后重启 Pi；活跃的 Subagents 0.76.1 运行时可能拒绝混用新旧模块的 `/reload`，不要为升级强制停止会话。用 `pi list` 查看来源，用 `pi remove git:github.com/chenhaoxiang/pi-notify-mac@v0.2.1` 卸载。也可下载Release、校验后解压到永久目录，作为固定本地package安装。
-
-### 手动安装（备选）
+全新安装使用固定发布版本：
 
 ```bash
-mkdir -p ~/.pi/agent/extensions
-cp src/pi-notify-mac.ts ~/.pi/agent/extensions/pi-notify-mac.ts
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
 ```
 
-手动安装与包安装二选一。
+**已经安装手工扩展的用户需要先迁移。** 在可信、完成校验的解压包内执行：
 
-## 发布与维护
+```bash
+sh install.sh
+```
 
-当前制品版本为 **0.2.1**。本项目是原创扩展，使用普通 SemVer 和 `v<版本>` tag，不虚构社区上游或 `upstream-main`。`main` 是经过 PR 更新的发布主线，历史 v0.0.1 保留不变。
+迁移器只处理已经存在 `settings.json` 的升级：将完整包放入个人 agent 目录，把旧的 `approval-notify.ts` / `pi-notify-mac.ts` 及原设置保全到扩展发现目录之外，移除对应声明，只启用一个包来源。没有设置文件时明确拒绝，全新安装由官方 `pi install` 管理首次写入，避免与原生首次创建设置的流程竞争。可用 `PI_AGENT_DIR` 或 `PI_CODING_AGENT_DIR` 指定隔离目录。其他设置和已有资源过滤配置保持不变；同版本目录字节冲突或过滤配置冲突时停止，不覆盖。
 
-[GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) 提供可安装包、来源清单和 `SHA256SUMS`，校验后再安装。GitHub 发布不等于 npm 发布。完整流程见[维护说明](docs/releasing.md)。
+**新版不能只复制入口文件**，入口已经依赖同目录模块。不要同时启用包与旧手工扩展；仅在扩展目录内改文件名不足以停用。详见[输入提醒、迁移与恢复](docs/input-reminders.md)。
+
+需要跟踪维护主线时才使用 `@main`。用 `pi list` 核对来源，卸载时使用 `pi remove <实际来源>`。安装只改变磁盘，不会热加载已运行的会话；请在方便时自行重启。活跃的 Subagents 可能拒绝混合模块的 `/reload`，不为升级强停任务。
 
 ## 配置
 
-默认声音为 `Glass`，可通过环境变量修改：
+两类提醒默认分别启用，可以单独关闭：
+
+| 环境变量 | 默认值 | 作用 |
+|---|---|---|
+| `PI_NOTIFY_MAC_COMPLETION` | 启用 | `0`、`false` 或 `off` 只关闭完成提醒 |
+| `PI_NOTIFY_MAC_SOUND` | `Glass` | 完成提示音；空值不关闭终端标题和响铃 |
+| `PI_NOTIFY_MAC_GRACE_MS` | `6000` | 可取消的完成提醒延迟；零值不取消保护检查 |
+| `PI_NOTIFY_MAC_INPUT` | 启用 | 使用相同关闭值，只关闭输入提醒 |
+| `PI_NOTIFY_MAC_INPUT_SOUND` | `Hero` | 系统声音名；空值保留弹窗但不播放声音 |
+| `PI_NOTIFY_MAC_INPUT_DELAY_MS` | `250` | 输入弹窗出现前的可取消延迟 |
+| `PI_NOTIFY_MAC_INPUT_REPEAT_MS` | `30000` | 弹窗打开期间重复播放声音的间隔；零值不重复 |
 
 ```bash
-PI_NOTIFY_MAC_SOUND=Ping pi
+PI_NOTIFY_MAC_INPUT=0 pi
+PI_NOTIFY_MAC_INPUT_SOUND='' pi
+PI_NOTIFY_MAC_COMPLETION=0 pi
 ```
 
-不播放声音：
-
-```bash
-PI_NOTIFY_MAC_SOUND='' pi
-```
-
-默认留出可取消的6000毫秒，让异步结果有机会先唤醒父会话。可用 `PI_NOTIFY_MAC_GRACE_MS=8000 pi` 调整；`0` 只取消延迟，不取消保护检查。仅接受0至2147483647的十进制整数毫秒，非法值使用默认值。若扩大Subagents结果合并窗口，应同步增大延迟；它不是任意负载下的绝对时序保证。
-
-macOS 通知权限以及终端的响铃、标题设置会影响实际效果。
+关闭值忽略大小写与两端空格。毫秒值仅接受 0 至 2147483647 的十进制整数，非法值使用默认值；非零重复间隔小于 1000ms 时回退 30000ms，避免大量创建声音进程。扩大 Subagents 结果合并窗口后，应相应增大完成提醒延迟；固定延迟不是任意负载下的时序保证。macOS 权限及终端设置影响实际效果。
 
 ## 工作原理
 
-扩展监听最终的 `agent_settled`，不在较早的 `agent_end` 触发。存在待处理消息、或本会话的顶层/嵌套Subagents仍处于queued/running时不通知；以磁盘状态判断，恢复后也不依赖开始/完成事件计数配对。未知或损坏状态抑制通知，不当成已完成。新任务、会话切换或关闭会取消定时器，真正发送前再次复查。
+完成提醒监听最终的 `agent_settled`，而不是较早的 `agent_end`。存在待处理消息或同会话顶层/嵌套 queued/running 子任务时抑制通知，以磁盘和会话文件身份判断归属；未知、损坏或无法核验的状态不当作“已完成”。发送前再次检查。这只表示会话回到空闲，不保证所有子任务成功或外部工作结束。原有四个冻结发送辅助函数及断言保持不变。
 
-只有TUI模式产生系统通知、标题和响铃，RPC/JSON/print保持安静。这是会话回到等待输入的提示，不证明所有子任务成功或任意外部工作已结束。通知失败不能影响主流程。Subagents 支持限定在已核验的 0.76.1-fork.1 和 0.78.0-fork.1 合同，见[当前诊断与兼容说明](docs/notification-diagnostics.md)。任何阻塞式扩展 UI 打开时，也会取消或抑制完成通知。
+输入提醒跟随真实 `ui_prompt_start/end` 生命周期。确认、选择、输入和编辑器会提醒；custom 问答只根据 `rpiv-ask-user-question` 0.1.4-fork.5 或兼容实现发出的 `pi:input-required` 明确生命周期提醒。即使已有提问工具执行，其他 custom 浮层仍不提醒；仅发出工具调用也不提醒。旧版提问工具仍正常工作，但不提供这条可选的精确提醒信号。每个最外层交互区间只提醒一次；回答、取消、新任务、会话替换和退出会取消定时器并终止所属弹窗、声音与跳转进程。点“知道了”只关闭提醒，不回答原问题。系统弹窗不显示问题标题、正文、选项、答案或工具参数。
 
-## 开发与验证
+Terminal 按进程与 tty 精确定位，查询与跳转异步且有超时；失败不会激活另一个 Terminal 实例冒充成功。其他受支持终端只明确提供“打开终端应用”。详见[输入提醒与旧扩展迁移](docs/input-reminders.md)。
 
-源码位于 `src/pi-notify-mac.ts`。临时加载：
-
-```bash
-pi -e ./src/pi-notify-mac.ts
-```
-
-使用Node24或支持TypeScript擦除及VM模块的版本运行 `npm test`。测试保留发布版/手工版基线，以假的文件系统、定时器、进程输出和通知传输验证行为，不发送真实通知/声音，不读取真实会话或调用模型。
-
-`node scripts/check-subagents-contract.mjs --repo <Subagents检出目录>` 核对固定 0.76.1-fork.1 提交的五份公开源码哈希；追加 `--fixture subagents-0.78.0-contract.json` 核对新版本，以及状态、归属、布局和结果合并合同；CI运行两类检查，不安装或执行Subagents。隔离Pi RPC启动只证明注册/加载。真实macOS通知、声音、标题与所有活跃会话热加载，仍需单独人工验收。
+只有 macOS TUI 产生这些效果；RPC/JSON/print 及无 UI 输入场景保持安静。任何阻塞 UI 都会暂停尚未发送的完成提醒；关闭后使用当前上下文重验，仍符合条件才重新延迟提醒。见[恢复合同](docs/settled-ui-resume.md)。
 
 ## 查看通知状态
 
-`/notify-status` 只读检查当前保护条件和最近一次生命周期判断，不发送系统通知、响铃或模型请求。状态区分待处理消息、活跃子任务、子任务状态无法核验、延迟等待和已请求通知。满足通知条件不等于所有任务成功，已请求通知也不证明 macOS 已送达。版本核验同时保留 0.76.1-fork.1 并覆盖 0.78.0-fork.1。见[诊断与兼容说明](docs/notification-diagnostics.md)。
+`/notify-status` 只读显示完成保护条件、上次生命周期判断、两个开关及输入提醒状态，不发送系统通知、弹窗、响铃或模型请求。满足条件不等于任务成功，请求发送也不等于 macOS 已显示。Subagents 合同限定在已核验的 0.76.1-fork.1 与 0.78.0-fork.1，不承诺所有后续版本。见[诊断与兼容说明](docs/notification-diagnostics.md)。
 
-## UI 关闭后的提醒恢复
+## 开发与验证
 
-尚未发送的完成提醒遇到阻塞式 UI 时会暂停，不再直接丢弃。关闭 UI 后，必须用当前上下文确认仍空闲、没有待处理消息或活跃/未知子任务，才重新安排可取消的延迟提醒。新任务、会话替换及发送会清除旧意图。见[恢复合同](docs/settled-ui-resume.md)。
+完整源码目录可临时加载，不需要安装：
+
+```bash
+pi -e ./src/pi-notify-mac.ts
+npm test
+node scripts/check-subagents-contract.mjs --repo <Subagents检出目录>
+node scripts/check-subagents-contract.mjs --repo <Subagents检出目录> --fixture subagents-0.78.0-contract.json
+```
+
+测试需要 Node 24 或支持 TypeScript 擦除及 VM 模块的版本。保留发布版/手工版冻结 fixtures 与断言；运行时用虚拟文件系统、子进程、定时器和终端输出，安装器使用 `tmp/` 下的一次性 agent 目录。不发送真实通知、声音或模型请求，不读取真实运行数据。CI 核对固定公开 Subagents 源码，不执行 Subagents。隔离 Pi RPC 只证明包注册和加载，不等于真实 macOS 效果或现有会话热加载通过。
+
+## 发布与维护
+
+本项目是原创扩展，使用普通 SemVer 与 `v<版本>` tag，`main` 经过 PR 更新，不虚构社区上游。[GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) 提供可安装包、精确来源清单与 SHA256SUMS；下载回读校验后再安装。GitHub 发布不等于 npm 发布。详见[维护说明](docs/releasing.md)和历史[完成提醒迁移合同](docs/notification-completion.md)。
 
 ## 许可证
 

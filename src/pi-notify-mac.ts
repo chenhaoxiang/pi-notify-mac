@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createInputReminder, enabled } from "./input-reminder.ts";
 
 const EXTENSION_NAME = "pi-notify-mac";
 const DEFAULT_SOUND = "Glass";
@@ -173,11 +174,13 @@ function hasActiveSubagentRuns(sessionIdentity: string | undefined, report?: (re
 }
 
 export default function (pi: ExtensionAPI) {
+  const inputReminder = createInputReminder();
   // pi-subagents identifies sessions by session FILE first
   // (shared/session-identity.ts): status.json "sessionId" actually holds the
   // .jsonl path. Mirror that exactly or the per-session filter silently
   // matches nothing and counts runs from other sessions.
   let currentSessionIdentity: string | undefined;
+  let currentContext: ExtensionContext | undefined;
   let notifyTimer: ReturnType<typeof setTimeout> | null = null;
   let lastReason = "not-settled";
   let waitingForInput = false;
@@ -195,7 +198,7 @@ export default function (pi: ExtensionAPI) {
       try {
         readiness = waitingForInput ? "waiting-for-input" : !ctx.isIdle() ? "running" : ctx.hasPendingMessages() ? "pending-messages" : childrenBlock() ?? "eligible";
       } catch { readiness = "stale-context"; }
-      ctx.ui.notify(`Pi notification readiness: ${readiness}\nLast lifecycle decision: ${lastReason}\nVerified Subagents contracts: 0.76.1-fork.1, 0.78.0-fork.1\nEligible means guards permit a settle notification, not task success. A notification request is not proof of macOS delivery.`, "info");
+      ctx.ui.notify(`Pi notification readiness: ${readiness}\nLast lifecycle decision: ${lastReason}\nVerified Subagents contracts: 0.76.1-fork.1, 0.78.0-fork.1\nEligible means guards permit a settle notification, not task success. A notification request is not proof of macOS delivery.\nCompletion reminders: ${enabled("PI_NOTIFY_MAC_COMPLETION") ? "enabled" : "disabled"}\nInput reminder: ${inputReminder.status()}`, "info");
     },
   });
 
@@ -206,7 +209,20 @@ export default function (pi: ExtensionAPI) {
     }
   };
 
+  pi.events.on("pi:input-required", (data) => {
+    if (!data || typeof data !== "object") return;
+    const event = data as { version?: unknown; source?: unknown; id?: unknown; phase?: unknown };
+    if (event.version !== 1 || event.source !== "ask_user_question" || typeof event.id !== "string") return;
+    if (event.phase === "start" && currentContext) {
+      inputReminder.start({ type: "ui_prompt_start", reason: "ui_prompt", kind: "custom" }, currentContext, event.id);
+    } else if (event.phase === "end") {
+      inputReminder.questionEnd(event.id);
+    }
+  });
+
   pi.on("session_start", (_event, ctx) => {
+    inputReminder.reset();
+    currentContext = ctx;
     currentSessionIdentity =
       ctx.sessionManager.getSessionFile() ?? ctx.sessionManager.getSessionId();
     cancelScheduledNotification();
@@ -215,36 +231,44 @@ export default function (pi: ExtensionAPI) {
     pendingSettle = false;
   });
 
-  pi.on("agent_start", () => {
+  pi.on("agent_start", (_event, ctx) => {
     // A new run means the previous settle was only an intermediate wait.
+    inputReminder.reset();
+    currentContext = ctx;
     cancelScheduledNotification();
     lastReason = "running";
     pendingSettle = false;
   });
 
   pi.on("session_shutdown", () => {
+    inputReminder.reset();
+    currentContext = undefined;
     cancelScheduledNotification();
     lastReason = "shutdown";
     waitingForInput = false;
     pendingSettle = false;
   });
 
-  pi.on("ui_prompt_start", () => {
+  pi.on("ui_prompt_start", (event, ctx) => {
+    currentContext = ctx;
+    inputReminder.start(event, ctx);
     waitingForInput = true;
     cancelScheduledNotification();
     lastReason = "waiting-for-input";
   });
   pi.on("ui_prompt_end", (_event, ctx) => {
+    currentContext = ctx;
+    inputReminder.end();
     waitingForInput = false;
     lastReason = "input-resolved";
     if (pendingSettle) scheduleNotification(ctx);
   });
-
   function scheduleNotification(ctx: ExtensionContext): void {
     // Notifications, terminal titles and bells are for interactive sessions
     // only; never write control sequences into print/json/rpc output streams.
     try {
-      if (ctx.mode !== "tui") { lastReason = "non-interactive"; pendingSettle = false; return; }
+      if (!enabled("PI_NOTIFY_MAC_COMPLETION")) { lastReason = "disabled"; pendingSettle = false; return; }
+      if (process.platform !== "darwin" || ctx.mode !== "tui") { lastReason = "non-interactive"; pendingSettle = false; return; }
       if (waitingForInput) { lastReason = "waiting-for-input"; return; }
       if (!ctx.isIdle()) { lastReason = "running"; pendingSettle = false; return; }
     } catch { lastReason = "stale-context"; pendingSettle = false; return; }
@@ -274,7 +298,8 @@ export default function (pi: ExtensionAPI) {
       // The session was switched/reloaded after this timer was scheduled.
       if (currentSessionIdentity !== identitySnapshot) return;
       try {
-        if (ctx.mode !== "tui") { lastReason = "non-interactive"; return; }
+        if (!enabled("PI_NOTIFY_MAC_COMPLETION")) { lastReason = "disabled"; pendingSettle = false; return; }
+        if (process.platform !== "darwin" || ctx.mode !== "tui") { lastReason = "non-interactive"; return; }
         if (waitingForInput) { lastReason = "waiting-for-input"; return; }
         if (!ctx.isIdle()) { lastReason = "running"; pendingSettle = false; return; }
         // A completion delivery may have been queued during the grace window

@@ -6,6 +6,9 @@ Do not trigger real notifications, sounds, model requests or edit machine-wide P
 
 ## Documentation map
 
+- `openspec/changes/integrate-input-reminders/`: approved single-package input-reminder behavior, design, migration scope and verification tasks.
+- `docs/input-reminders.md`: cancellable prompt lifecycle, independent controls, bounded/private terminal delivery, complete-package installer and legacy dependency inventory.
+
 - `docs/maintenance/2026-10-14-audited-bugfix-installed.md`: 0.2.1 red/green defect closure, exact-review-before-merge, main CI, schema1 original Release, installed bytes/native synthetic recheck and activation limits.
 
 - `docs/settled-ui-resume.md`: one pending settle intent, fresh UI-end context, renewed grace and complete current-state guard/invalidation regression.
