@@ -39,10 +39,11 @@ test('installer preserves legacy bytes/settings, removes duplicate declarations 
   assert.deepEqual(JSON.parse(read('settings.json')), next);
 }));
 
-test('fresh installer creates a private settings file with only the complete package', () => fixture(({ agent, install, read }) => {
-  const result = install(); assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(JSON.parse(read('settings.json')), { packages: [selected] });
-  assert.equal(fs.statSync(path.join(agent, 'settings.json')).mode & 0o777, 0o600);
+test('migration refuses missing settings so official pi install owns fresh first-write semantics', () => fixture(({ agent, install }) => {
+  const result = install(); assert.notEqual(result.status, 0); assert.match(result.stderr, /requires an existing settings\.json/);
+  assert.equal(fs.existsSync(path.join(agent, 'settings.json')), false);
+  assert.equal(fs.existsSync(path.join(agent, selected)), false);
+  assert.equal(fs.existsSync(path.join(agent, 'settings.json.lock')), false);
 }));
 
 test('resource filters are preserved and same-named unrelated extensions are not removed', () => fixture(({ write, install, read }) => {
@@ -104,7 +105,8 @@ fs.renameSync=function(from,to){
   assert.equal(JSON.parse(read('settings.json')).laterWriter, true);
 }));
 
-test('legacy symlink is preserved as a symlink outside discovery, not copied or dereferenced', () => fixture(({ agent, root, install }) => {
+test('legacy symlink is preserved as a symlink outside discovery, not copied or dereferenced', () => fixture(({ agent, root, write, install }) => {
+  write('settings.json', {});
   const original = path.join(root, 'old.ts'); fs.writeFileSync(original, 'legacy source'); fs.symlinkSync(original, path.join(agent, 'extensions/approval-notify.ts'));
   const result = install(); assert.equal(result.status, 0, result.stderr); const receipt = JSON.parse(result.stdout);
   assert.equal(fs.readlinkSync(path.join(receipt.backup, 'approval-notify.ts')), original); assert.equal(fs.readFileSync(original, 'utf8'), 'legacy source');

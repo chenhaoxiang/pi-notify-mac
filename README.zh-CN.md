@@ -25,7 +25,7 @@ pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
 sh install.sh
 ```
 
-安装器将完整包放入个人 agent 目录，把旧的 `approval-notify.ts` / `pi-notify-mac.ts` 及原设置保全到扩展发现目录之外，移除对应声明，只启用一个包来源。可用 `PI_AGENT_DIR` 或 `PI_CODING_AGENT_DIR` 指定隔离目录。其他设置和已有资源过滤配置保持不变；同版本目录字节冲突或过滤配置冲突时停止，不覆盖。
+迁移器只处理已经存在 `settings.json` 的升级：将完整包放入个人 agent 目录，把旧的 `approval-notify.ts` / `pi-notify-mac.ts` 及原设置保全到扩展发现目录之外，移除对应声明，只启用一个包来源。没有设置文件时明确拒绝，全新安装由官方 `pi install` 管理首次写入，避免与原生首次创建设置的流程竞争。可用 `PI_AGENT_DIR` 或 `PI_CODING_AGENT_DIR` 指定隔离目录。其他设置和已有资源过滤配置保持不变；同版本目录字节冲突或过滤配置冲突时停止，不覆盖。
 
 **新版不能只复制入口文件**，入口已经依赖同目录模块。不要同时启用包与旧手工扩展；仅在扩展目录内改文件名不足以停用。详见[输入提醒、迁移与恢复](docs/input-reminders.md)。
 

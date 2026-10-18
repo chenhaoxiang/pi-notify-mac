@@ -59,7 +59,8 @@ try {
   }
   lockStat = fs.lstatSync(settingsLock); lockStarted = Date.now();
   const settingsStat = fs.lstatSync(settingsFile, { throwIfNoEntry: false });
-  if (settingsStat && !settingsStat.isFile()) throw Error('settings.json must be a regular file');
+  if (!settingsStat) throw Error('Local migration requires an existing settings.json; use official pi install for a fresh installation with no concurrent settings writers');
+  if (!settingsStat.isFile()) throw Error('settings.json must be a regular file');
   const original = settingsStat ? fs.readFileSync(settingsFile) : undefined;
   let settings;
   try { settings = original ? JSON.parse(original.toString()) : {}; }

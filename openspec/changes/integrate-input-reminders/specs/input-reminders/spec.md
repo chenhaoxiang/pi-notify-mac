@@ -33,7 +33,7 @@ The package SHALL use fixed reminder messages without prompt contents or tool ar
 - **THEN** failure is reported without pretending another Terminal instance is the target
 
 ### Requirement: Reversible single-source installation
-The installer SHALL preserve legacy files/settings outside discovery, install all runtime modules, select only the new package source, remove exact legacy extension declarations and preserve unrelated settings. It SHALL acquire Pi's `settings.json.lock` lease before reading/modifying settings, refuse an existing or replaced lease, and SHALL NOT overwrite a conflicting installed version.
+The local migration installer SHALL require an existing settings file, preserve legacy files/settings outside discovery, install all runtime modules, select only the new package source, remove exact legacy extension declarations and preserve unrelated settings. It SHALL acquire Pi's `settings.json.lock` lease before reading/modifying settings, refuse an existing or replaced lease, and SHALL NOT overwrite a conflicting installed version. A missing settings file SHALL be rejected without creating configuration or installing a selected package; fresh first-write belongs to official Pi installation.
 
 #### Scenario: Upgrade from a manual approval reminder and old package
 - **WHEN** migration succeeds

@@ -13,7 +13,7 @@ One macOS notification package for Pi: completion notifications and waiting-for-
 
 Candidate version: **0.3.0**. Publication is complete only after PR/CI, immutable Release and checksum verification; historical releases remain unchanged.
 
-For a new installation, use the fixed Release:
+For a fresh installation, use the fixed Release and let Pi manage the first settings write:
 
 ```bash
 pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
@@ -25,7 +25,7 @@ pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
 sh install.sh
 ```
 
-This installs the complete package under the personal agent directory, backs up settings plus old `approval-notify.ts`/`pi-notify-mac.ts` files outside discovery, removes their exact declarations and selects a single package source. Optional `PI_AGENT_DIR` or `PI_CODING_AGENT_DIR` selects an isolated agent directory. Unrelated settings and existing package resource filters are preserved; conflicting installed bytes/filters stop migration.
+This migrates an existing `settings.json`: it installs the complete package under the personal agent directory, backs up settings plus old `approval-notify.ts`/`pi-notify-mac.ts` files outside discovery, removes their exact declarations and selects a single package source. It refuses a missing settings file so Pi's native first-write protocol remains authoritative. Optional `PI_AGENT_DIR` or `PI_CODING_AGENT_DIR` selects an isolated agent directory. Unrelated settings and existing package resource filters are preserved; conflicting installed bytes/filters stop migration.
 
 **Do not copy only the entry file**: it now imports sibling modules. Do not enable the package and an old manual extension together. Renaming an extension inside the discovery directory is not sufficient. See [migration, recovery and verification boundaries](docs/input-reminders.md).
 
