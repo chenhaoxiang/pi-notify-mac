@@ -7,6 +7,8 @@ created: 2026-10-18
 verified: 2026-10-18
 verified_by: manual
 owner: chx
+updated: 2026-10-19
+reviewed: 2026-10-19
 release: 0.3.0
 ---
 
@@ -42,7 +44,7 @@ The OS alert does not include prompt titles, question text, options, answers, to
 
 Verify a trusted source/package and its checksums first. For a new installation use the pinned package source; for migration from old manual files run `sh install.sh` inside the verified extracted package. Optional `PI_AGENT_DIR` (legacy installer override) or `PI_CODING_AGENT_DIR` selects an isolated agent directory.
 
-The local installer is for migration of an existing installation only. For a fresh agent directory with no `settings.json`, use official `pi install`; `sh install.sh` refuses that case so it cannot compete with Pi's native first-write behavior.
+The local installer is for migration of an existing installation only. For a fresh agent directory with no `settings.json`, use official `pi install`; `sh install.sh` refuses that case so it cannot compete with Pi's native first-write behavior. If that directory still contains a manual `extensions/approval-notify.ts` or `extensions/pi-notify-mac.ts`, preserve and move those exact files outside extension discovery before enabling the package. Official package installation does not itself remove those manual files; never leave both sources enabled.
 
 The local installer:
 
@@ -59,3 +61,24 @@ Old released versions and private backups are intentional rollback assets, not a
 On 2026-10-18, active workspace code/scripts/config/docs plus personal extensions, package sources, skills and helper directories were searched for `approval-notify`. The only active legacy implementation was the personal extension; no other project import or install handler was found. The later independent review identified missing custom-prompt ownership metadata, so this change also adds the optional content-free producer signal to the maintained question package; this is an explicit compatibility change, not a pre-existing approval-notify dependency. One 2026-09-22 asset inventory snapshot names the former extension and is retained as dated history, not an installation instruction. Private session logs, caches, backups and frozen/retired assets are not active dependencies and are not rewritten. Arbitrary user CLI overrides or machines outside this scan cannot be claimed exhausted.
 
 Synthetic runtime tests virtualize subprocesses, timers, stdout and run trees. Installer tests use disposable agent directories under repository `tmp/`. Retain the old 98-test baseline and four frozen delivery helpers. The no-prompt native loader check and pinned Subagents checks are separate from manual macOS alert/sound/focus acceptance. Release, installation and live-session activation must be reported from actual evidence, not inferred from passing tests.
+
+## Post-delivery review and manual smoke boundary (2026-10-19)
+
+A read-only review of the current main branches, installed sources, release evidence, lifecycle bridge and migration boundary found no blocker or major issue. The current personal selection is exactly `packages/pi-notify-mac/0.3.0` plus `git:github.com/chenhaoxiang/rpiv-ask-user-question@v0.1.4-fork.5`; the old `approval-notify.ts` and manual `pi-notify-mac.ts` are absent from automatic discovery. Main CI remains green. This review did not change code, settings or release assets.
+
+The next highest-value validation is a real macOS smoke, which is intentionally separate from automated tests:
+
+1. Open `confirm`, `select`, `input` and editor prompts in Terminal.app or iTerm and verify the warning appears after the short delay.
+2. Open `ask_user_question` and verify exactly one warning; open an unrelated custom overlay and verify it does not add another warning.
+3. Click “知道了” or press Escape and confirm that only the reminder closes; the original prompt remains pending.
+4. Answer/cancel the prompt and confirm repeated sound, alert subprocesses and late focus work stop.
+5. Use “去终端处理” with multiple Terminal.app/iTerm windows and verify the originating tab; record background, missing-tty, tmux and cross-Space behavior as limitations rather than exact-focus success.
+6. Restart a disposable/current Pi session voluntarily before considering old-session behavior accepted; no live session is force-stopped by this checklist.
+
+### Future optimization candidates
+
+These are not current release blockers:
+
+- **P2 — missing-settings legacy helper:** `sh install.sh` intentionally refuses when `settings.json` is absent because Pi’s native first-write callback is computed before its lock. If a future fresh-agent workflow must remove an old manual extension too, add a separate `legacy-disable` operation that only backs up/moves exact legacy files and never creates or edits `settings.json`.
+- **P2 — native smoke receipt:** after the manual checklist, add a dated acceptance snapshot recording terminal/profile, prompt kinds, focus result and tmux/cross-Space limitations. Do not turn synthetic RPC or virtual transport into native-delivery proof.
+- **P3 — packaged README wording:** the immutable 0.3.0/fork.5 tarballs retain the candidate-version wording present when they were built; maintained main documentation now records their released status. Align that wording before packing the next normal release, without rebuilding or replacing these versions. Flat checksum generation is already documented in the release runbooks; the current versions use the supplementary `DOWNLOAD-SHA256SUMS`.
