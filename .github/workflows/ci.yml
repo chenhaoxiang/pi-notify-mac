@@ -26,6 +26,8 @@ jobs:
             fixture: subagents-0.76.1-contract.json
           - commit: 88d5be272f7ca222a127ccb2a70f093a537ff73b
             fixture: subagents-0.78.0-contract.json
+          - commit: e37993ca69df4dde55718c8a515d38c56f157f98
+            fixture: subagents-0.79.0-fork.3-contract.json
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:

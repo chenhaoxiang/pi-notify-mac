@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 
 const fixtureArg = process.argv.indexOf('--fixture');
 const fixtureName = fixtureArg < 0 ? 'subagents-0.76.1-contract.json' : process.argv[fixtureArg + 1];
-assert.ok(['subagents-0.76.1-contract.json', 'subagents-0.78.0-contract.json'].includes(fixtureName), 'Unknown pinned fixture');
+assert.ok(['subagents-0.76.1-contract.json', 'subagents-0.78.0-contract.json', 'subagents-0.79.0-fork.3-contract.json'].includes(fixtureName), 'Unknown pinned fixture');
 const fixture = JSON.parse(readFileSync(new URL(`../test/fixtures/${fixtureName}`, import.meta.url), 'utf8'));
 const i = process.argv.indexOf('--repo');
 assert.ok(i >= 0 && process.argv[i + 1], 'Usage: node scripts/check-subagents-contract.mjs --repo <public-subagents-checkout>');

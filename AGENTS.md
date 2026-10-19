@@ -17,7 +17,7 @@ Do not trigger real notifications, sounds, model requests or edit machine-wide P
 
 - `docs/maintenance/2026-10-14-optimization-installed.md`: 0.2.0 exact-source normal merge, CI, fresh-download checksums, installed bytes, combined loader and rollback/activation boundaries.
 
-- `docs/notification-diagnostics.md`: read-only readiness/last-decision command, 0.76.1/0.78.0 pinned compatibility and synthetic regression scope.
+- `docs/notification-diagnostics.md`: read-only readiness/last-decision command, retained 0.76.1/0.78.0 pins plus 0.79.0-fork.3 source conformance and synthetic-only compatibility boundaries.
 
 - `README.md` / `README.zh-CN.md`: default English and complete Chinese installation/configuration/verification boundaries.
 - `docs/releasing.md`: per-version releases, asset verification, permanent installation paths and rollback.
