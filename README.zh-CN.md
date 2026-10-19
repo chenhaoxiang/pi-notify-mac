@@ -65,7 +65,7 @@ Terminal 按进程与 tty 精确定位，查询与跳转异步且有超时；失
 
 ## 查看通知状态
 
-`/notify-status` 只读显示完成保护条件、上次生命周期判断、两个开关及输入提醒状态，不发送系统通知、弹窗、响铃或模型请求。满足条件不等于任务成功，请求发送也不等于 macOS 已显示。Subagents 合同限定在已核验的 0.76.1-fork.1 与 0.78.0-fork.1，不承诺所有后续版本。见[诊断与兼容说明](docs/notification-diagnostics.md)。
+`/notify-status` 只读显示完成保护条件、上次生命周期判断、两个开关及输入提醒状态，不发送系统通知、弹窗、响铃或模型请求。满足条件不等于任务成功，请求发送也不等于 macOS 已显示。保留已核验的 Subagents 0.76.1-fork.1 与 0.78.0-fork.1，并独立追加精确 0.79.0-fork.3 源码合同；这是测试/CI 后继，不是新版 Notify 运行时，也不承诺所有后续版本。见[诊断与兼容说明](docs/notification-diagnostics.md)。
 
 ## 开发与验证
 
@@ -76,6 +76,7 @@ pi -e ./src/pi-notify-mac.ts
 npm test
 node scripts/check-subagents-contract.mjs --repo <Subagents检出目录>
 node scripts/check-subagents-contract.mjs --repo <Subagents检出目录> --fixture subagents-0.78.0-contract.json
+node scripts/check-subagents-contract.mjs --repo <Subagents检出目录> --fixture subagents-0.79.0-fork.3-contract.json
 ```
 
 测试需要 Node 24 或支持 TypeScript 擦除及 VM 模块的版本。保留发布版/手工版冻结 fixtures 与断言；运行时用虚拟文件系统、子进程、定时器和终端输出，安装器使用 `tmp/` 下的一次性 agent 目录。不发送真实通知、声音或模型请求，不读取真实运行数据。CI 核对固定公开 Subagents 源码，不执行 Subagents。隔离 Pi RPC 只证明包注册和加载，不等于真实 macOS 效果或现有会话热加载通过。

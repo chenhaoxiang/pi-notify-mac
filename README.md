@@ -63,7 +63,7 @@ Effects are macOS TUI-only; RPC/JSON/print and no-UI input contexts stay quiet. 
 
 ## Notification readiness
 
-`/notify-status` is read-only: current completion guards, last lifecycle decision, both enable switches and input state. It sends no system alert, sound, bell or model request. Eligible does not mean success; an effect request is not macOS delivery proof. Pinned Subagents contracts cover 0.76.1-fork.1 and 0.78.0-fork.1, not every future release. See [diagnostics and compatibility](docs/notification-diagnostics.md).
+`/notify-status` is read-only: current completion guards, last lifecycle decision, both enable switches and input state. It sends no system alert, sound, bell or model request. Eligible does not mean success; an effect request is not macOS delivery proof. Pinned source contracts retain 0.76.1-fork.1 and 0.78.0-fork.1 and separately add exact 0.79.0-fork.3 conformance; this is not a new Notify runtime release or every-future-release guarantee. See [diagnostics and compatibility](docs/notification-diagnostics.md).
 
 ## Development and verification
 
@@ -76,7 +76,7 @@ node scripts/check-subagents-contract.mjs --repo <subagents-checkout>
 node scripts/check-subagents-contract.mjs --repo <subagents-checkout> --fixture subagents-0.78.0-contract.json
 ```
 
-Tests require Node 24 or another version supporting TypeScript erasure and VM modules. Frozen released/manual fixtures and assertions remain unchanged. Runtime tests virtualize FS, subprocesses, timers and terminal output; installer tests use disposable directories under `tmp/`. No real model, notification, sound or private run state is used. CI verifies both fixed public producer contracts without executing Subagents. Isolated Pi RPC verifies package registration/loading only, not actual macOS delivery or hot-loading live sessions.
+Tests require Node 24 or another version supporting TypeScript erasure and VM modules. Frozen released/manual fixtures and assertions remain unchanged. Runtime tests virtualize FS, subprocesses, timers and terminal output; installer tests use disposable directories under `tmp/`. No real model, notification, sound or private run state is used. CI verifies all three fixed public producer contracts without executing Subagents. Isolated Pi RPC verifies package registration/loading only, not actual macOS delivery or hot-loading live sessions.
 
 ## Releases and maintenance
 

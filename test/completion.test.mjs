@@ -48,6 +48,22 @@ for (const state of ['complete', 'failed', 'partial', 'paused', 'stopped', 'reje
   await h.emit('agent_settled'); h.clock.advance(6000); assert.equal(h.calls.length, 1);
 });
 
+for (const state of ['queued', 'running', 'complete', 'future-state']) test(`0.79 metadata does not override lifecycle/ownership: ${state}`, async () => {
+  const h = await ready();
+  h.run('native-079', { state, sessionId: OWNER, lifecycleArtifactVersion: 3,
+    durationMs: 120, toolCount: 2, model: 'synthetic/local', thinking: 'high',
+    usage: { input: 3, output: 1, cost: 0 }, costStatus: 'unpriced' });
+  await h.emit('agent_settled'); h.clock.advance(6000);
+  assert.equal(h.calls.length, state === 'complete' ? 1 : 0);
+  assert.ok(!h.errors.join('\n').includes('synthetic/local'));
+});
+
+test('new session cancels an old 0.79 completion intent without a stale reminder', async () => {
+  const h = await ready(); h.run('old-079', { state: 'complete', sessionId: OWNER, lifecycleArtifactVersion: 3, toolCount: 3 });
+  await h.emit('agent_settled'); assert.equal(h.clock.pending, 1);
+  h.state.sessionFile = OTHER; await h.emit('session_start'); h.clock.advance(6000); quiet(h);
+});
+
 for (const state of ['completed', 'future-state', 0, null, undefined]) test(`unrecognized status ${state} is uncertainty`, async () => {
   const h = await ready(); h.run('own', { state, sessionId: OWNER });
   await h.emit('agent_settled'); assert.equal(h.clock.pending, 0); quiet(h);
