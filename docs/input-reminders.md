@@ -5,8 +5,8 @@ status: active
 truth_mode: maintained
 created: 2026-10-18
 verified: 2026-10-20
-verified_by: manual
-verification_scope: Scoped agent-driven native select lifecycle, owned alert cancellation and real playback timing; not acoustic or all-prompt acceptance
+verified_by: manual+controlled-pty
+verification_scope: Scoped agent-driven native select lifecycle, owned alert cancellation and real playback timing, plus a controlled isolated own-PTY TUI run with reminders disabled; not acoustic, GUI-cleanup or all-prompt acceptance
 owner: chx
 updated: 2026-10-20
 reviewed: 2026-10-20
@@ -167,10 +167,105 @@ playback-timing gap, not every standard prompt kind, the custom `ask_user_questi
 producer, iTerm/tmux, cross-Space/minimized variants, acoustic acceptance, resident-session
 hot loading, general reliability or ROI. The older user-observed manual results stay partial.
 
+### 2026-10-20 controlled isolated PTY entry (no GUI, no OS effects by default)
+
+The native successor above depended on Terminal.app windows, Cua Driver and an extra Terminal
+instance whose termination confirmations could not be attributed to the fixture. That path is
+usable as manual evidence but not as a repeatable automated entry. This successor adds one
+source-owned alternative and leaves the unresolved GUI residue alone.
+
+**Entry points** (repository scripts, not shipped in the package; `npm test` never runs Pi):
+
+```sh
+# default: real Pi TUI in an owned PTY, reminders disabled, macOS transport stubbed
+python3 scripts/native-pty-smoke.py
+# supervision regression only: no Pi, no model, node fixtures as the child process
+python3 scripts/native-pty-smoke.py --profile fixture --command "$(command -v node)" \
+  --command-arg "$PWD/test/helpers/native-pty/ready-then-quit.mjs" --quit-keys $'quit\n'
+# plan only: prints the environment/isolation contract without spawning anything;
+# needs no Pi installation and never runs the version probe
+python3 scripts/native-pty-smoke.py --dry-run
+```
+
+`scripts/native-pty-pi-fixture.ts` is the owned fixture extension loaded next to the package
+source. It exercises the real `ctx.ui.select()` lifecycle, refuses every provider request, and
+counts blocked `fetch` calls. The run is not a notification run: no alert, sound, focus or
+application launch is requested or delivered.
+
+**Isolation.** The runner allocates its own PTY (`pty.fork()`), so no Terminal.app, iTerm,
+GUI automation or desktop input is involved. It creates one fixture root and gives the child a
+fresh `HOME`, `TMPDIR`, agent directory, session directory, cwd and Subagents temp root.
+The child environment is built from an explicit allowlist; nothing is copied from the
+runner's environment and no credential-like key is present. Pi starts with `--offline`,
+`--no-session`, `--no-tools`, discovery disabled for extensions/skills/prompt
+templates/themes/context files, and an unreachable `127.0.0.1:9` fixture provider whose key is
+the literal `synthetic-not-a-credential`. `osascript`, `afplay`, `open` and
+`terminal-notifier` resolve to stub executables in the fixture `PATH` that record the
+invocation and exit 1. Default mode additionally sets `PI_NOTIFY_MAC_COMPLETION=0` and
+`PI_NOTIFY_MAC_INPUT=0`, so no OS reminder is supposed to be requested at all. Real macOS
+delivery is the separate `--mode os-effects --allow-os-effects` entry; it is not part of
+`npm test` and was not run here.
+
+**Ownership and cleanup.** The child is a session leader (`pid == pgid == sid`) inside the
+PTY the runner created. Registration is part of the owned lifecycle: the child is wrapped the
+moment `pty.fork()` returns, and interrupts stay deferred until the caller has assigned the
+session, so a signal anywhere in that window is replayed against an owned child. A failure
+before that handover aborts the child itself: the master is closed, the identity is re-checked,
+and the `SIGKILL` attempt is always appended to `receipt.signals` with an explicit
+`ownershipBasis` — `recorded-start-identity` when the registered start time was available and
+re-compared, `unreaped-forked-child` otherwise, where the fail-closed argument is the unreaped
+pid this process forked plus its own group/session, not a start comparison. Every other signal
+is preceded by re-reading that pid's `pgid`, `sid` and `ps -o lstart=` start time and comparing
+them with the recorded identity; a missing start reading is `start-unavailable` rather than a
+skipped check, and the signal goes to that process group only. Because the child is unreaped
+while the check runs, its pid cannot be recycled, so a stale or foreign pid is never signalled;
+a failed comparison is recorded as `refused` and nothing is sent. The normal path is the quit
+keystroke (`Ctrl-D`, Pi's `app.exit`), then the owned fixture's `ctx.shutdown()` command, then
+closing the PTY master, then `SIGTERM`, then `SIGKILL`; each stage is bounded and each result
+lands in the receipt. `SIGINT`/`SIGTERM`/`SIGHUP` to the runner take the same cleanup path and
+exit 130.
+
+`graceful` is reserved for a normal exit code 0 with no escalation step; a non-zero code or a
+signal exit is recorded as `exited-nonzero`/`signalled` and fails the default expectation.
+`--expect any-exit` only relaxes that for fixtures that are meant to be escalated or to die.
+
+**Observed run at this head.** Real `pi 1.3.0-fork.1` TUI in the owned PTY:
+`session_start` with `mode=tui`/`hasUI=true`, one real `ctx.ui.select()` opened and resolved to
+`PASS_P` by a real Enter keystroke on the PTY, `session_shutdown`, fixture exit code 0, zero
+provider requests, zero `fetch` calls, zero denied-transport invocations, graceful exit with
+zero signals, and a PTY transcript containing the rendered prompt and the fixture status line.
+The receipt also
+carries the three `src` SHA-256 pins, the explicit child environment and the child identity.
+
+**Limits.** This is a real TUI/PTY run with reminders disabled: it proves process isolation,
+the owned prompt lifecycle and supervision, **not** audible delivery, alert presentation,
+terminal focus, iTerm/tmux/cross-Space behavior or hot-loading an existing session. It also
+does not stop, remove or acknowledge the earlier extra Terminal instance and its termination
+confirmations — those processes were never proven to belong to the fixture and remain an
+explicit manual GUI-cleanup item. `--mode os-effects` is implemented but unverified. Runtime
+source, defaults, release 0.3.0 and installed bytes are unchanged.
+
+**Regression coverage.** Fourteen process-level tests (`test/native-pty-smoke.test.mjs`) drive
+only node fixture processes: graceful owned exit, bounded `SIGTERM`/`SIGKILL` escalation
+confined to the owned group while a foreign session leader survives, startup failure without
+any signal, non-zero and signal exits rejected as graceful, interrupt cleanup with exit 130, a
+registration failure that still closes/verifies/reaps its child and records the abort signal, a
+failure after registration but before handoff (recorded start gate), a deferred interrupt after
+registration but before handoff (exit 130, own child reaped, foreign session untouched), a
+deferred interrupt inside the fork-to-registration window, the ownership guard's refusal of
+pid/group/start mismatches, an
+unavailable start identity and non-leader processes, the inherited-environment and
+credential-free plan (including a `PATH` without Pi and a Pi stub that must not be executed),
+and refusal of unsafe roots/packages/dimensions/effect modes before any spawn. A failing case
+keeps its receipt, transcript and journal under `tmp/native-pty-tests`; only passing cases are
+cleaned. Total local suite: 186/186.
+
 ### Future optimization candidates
 
 These are not current release blockers:
 
 - **P2 — missing-settings legacy helper:** `sh install.sh` intentionally refuses when `settings.json` is absent because Pi’s native first-write callback is computed before its lock. If a future fresh-agent workflow must remove an old manual extension too, add a separate `legacy-disable` operation that only backs up/moves exact legacy files and never creates or edits `settings.json`.
 - **P2 — native smoke receipt:** after the manual checklist, add a dated acceptance snapshot recording terminal/profile, prompt kinds, focus result and tmux/cross-Space limitations. Do not turn synthetic RPC or virtual transport into native-delivery proof.
+- **P2 — real-delivery PTY run:** exercise `--mode os-effects --allow-os-effects` once in a disposable PTY and record whether the alert/sound actually appeared, without claiming acoustic audibility; keep the synthetic default as the automated entry.
+- **P2 — GUI residue:** the extra Terminal instance and its unattributed termination confirmations from the 2026-10-20 native successor remain an open manual-cleanup item; no automated entry here claims to close it.
 - **P3 — packaged README wording:** the immutable 0.3.0/fork.5 tarballs retain the candidate-version wording present when they were built; maintained main documentation now records their released status. Align that wording before packing the next normal release, without rebuilding or replacing these versions. Flat checksum generation is already documented in the release runbooks; the current versions use the supplementary `DOWNLOAD-SHA256SUMS`.
