@@ -128,7 +128,9 @@ The synthetic fixture used the **real native `ctx.ui.select()` lifecycle**, not 
 windows. A transparent test-process observer passed through the real `execFile` calls,
 recording fixed effect classes/times, child exit and AbortSignal state, never prompt text.
 The installed runtime was neither patched nor reinstalled. Its three source SHA-256 pins
-matched current main bytes at the time of the test:
+matched the tested clean checkout's `src` at commit
+`18f0451f34e49e85602756f75b203ff5816974b7` (parent Git/diff readback; source pin,
+not in-memory execution attestation):
 
 - `pi-notify-mac.ts`: `3e90f4fea3c31312630db9ab8b412ed73b0386c83d29464e75e12ed24c620415`
 - `input-reminder.ts`: `df1963df0442190a21c828842ee946c56aee4f1fe54c31921829a606a2443d7e`
@@ -140,14 +142,23 @@ matched current main bytes at the time of the test:
 | Two real sessions waiting concurrently | A.3 resolved while B.1 stayed on its question and continued its own playback schedule. A emitted no later sound request; resolving A did not cancel B. |
 | Full default repeat intervals | 19 real `afplay` processes completed with exit 0 across accepted trials; consecutive in-prompt request intervals were **30000.75–30003.10 ms**, not a shortened test interval. |
 | Native alert presentation and removal | B.1's owned layer-8 alert window was observed on screen through AX and a window-scoped screenshot. After resolution, the owned alert processes exited and their all-layer window metadata was empty. Cua's layer-0 `list_windows` alone cannot establish alert absence. |
-| Stop after resolution | A condition-checked 31-second observation after both responses recorded **zero** new sound requests. No task-completion notification was requested by these input-only commands. |
-| Isolation and cleanup | The fixture had no available models; provider-request hooks and its network-denying observer recorded 0 requests. B exited through its owned shutdown command. After an exact-window focus failure during A cleanup, its recorded PID/current-directory ownership was rechecked and only that disposable fixture received `SIGTERM`; no other Pi process was signalled. |
+| Stop after resolution | A parent-recorded 31-second check reported **zero** new sound requests. The lifecycle/effect journals independently show no new requests from final response until fixture exit (more than 31 seconds). No task-completion notification was requested by these input-only commands. |
+| Isolation and cleanup | The fixture had no available models; its provider-request hook recorded 0 requests and its fetch observer recorded 0 fetch calls (not general socket/network isolation). B exited through its owned shutdown command. After an exact-window focus failure during A cleanup, its recorded PID/current-directory ownership was rechecked and only that disposable fixture received `SIGTERM`; no other Pi process was signalled. |
 
-A first A.1 trial resolved before the agent issued its first input and is **excluded**:
-that external interaction cannot be attributed to autonomous acceptance. GUI delivery
+A first A.1 trial is **excluded**: its alert exited normally and triggered terminal
+focus before the question resolved, with no agent response input recorded for that trial.
+The observed external interaction cannot be attributed to autonomous acceptance. GUI delivery
 failures/unverifiable responses were re-observed rather than blindly replayed; successful
 answers were established from the native question-result journal, not the input tool's exit.
 Raw window captures and journals remain private temporary evidence; none is attached here.
+
+**Cleanup residual:** the two labelled Pi fixtures exited and their windows disappeared.
+A separately launched Terminal instance restored old window layouts; its attempted normal
+menu quit exposed termination confirmations for processes not proven to belong to the
+fixture. The agent did not confirm termination or signal those processes. Exact-window
+cancel/Escape delivery then failed (`ax_window_unresolved`/foreground failure); those
+extra-instance confirmations remain an explicitly unresolved GUI-cleanup item. No broad
+kill, unbound desktop input or alternate UI-control channel was used to hide this failure.
 
 **Audio limit:** the system reported output volume 44 and `output muted:false`; actual
 playback exit/timing is verified, but physical speaker audibility was not independently
