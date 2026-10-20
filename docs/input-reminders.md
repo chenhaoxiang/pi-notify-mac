@@ -182,7 +182,8 @@ python3 scripts/native-pty-smoke.py
 # supervision regression only: no Pi, no model, node fixtures as the child process
 python3 scripts/native-pty-smoke.py --profile fixture --command "$(command -v node)" \
   --command-arg "$PWD/test/helpers/native-pty/ready-then-quit.mjs" --quit-keys $'quit\n'
-# plan only: prints the environment/isolation contract without spawning anything
+# plan only: prints the environment/isolation contract without spawning anything;
+# needs no Pi installation and never runs the version probe
 python3 scripts/native-pty-smoke.py --dry-run
 ```
 
@@ -206,14 +207,22 @@ delivery is the separate `--mode os-effects --allow-os-effects` entry; it is not
 `npm test` and was not run here.
 
 **Ownership and cleanup.** The child is a session leader (`pid == pgid == sid`) inside the
-PTY the runner created. Every signal is preceded by re-reading that pid's `pgid`, `sid` and
-`ps -o lstart=` start time and comparing them with the identity recorded at spawn; the signal
-then goes to that process group only. Because the child is unreaped while the check runs, its
+PTY the runner created. Registration is part of the owned lifecycle: the child is wrapped the
+moment `pty.fork()` returns, a signal that lands between fork and registration is deferred and
+replayed once the child is owned, and a registration failure closes the master, re-verifies the
+created session and reaps it instead of leaking it. Every signal is preceded by re-reading that
+pid's `pgid`, `sid` and `ps -o lstart=` start time and comparing them with the recorded
+identity; a missing start reading is `start-unavailable` rather than a skipped check, and the
+signal goes to that process group only. Because the child is unreaped while the check runs, its
 pid cannot be recycled, so a stale or foreign pid is never signalled; a failed comparison is
 recorded as `refused` and nothing is sent. The normal path is the quit keystroke
 (`Ctrl-D`, Pi's `app.exit`), then the owned fixture's `ctx.shutdown()` command, then closing the
 PTY master, then `SIGTERM`, then `SIGKILL`; each stage is bounded and each result lands in the
 receipt. `SIGINT`/`SIGTERM`/`SIGHUP` to the runner take the same cleanup path and exit 130.
+
+`graceful` is reserved for a normal exit code 0 with no escalation step; a non-zero code or a
+signal exit is recorded as `exited-nonzero`/`signalled` and fails the default expectation.
+`--expect any-exit` only relaxes that for fixtures that are meant to be escalated or to die.
 
 **Observed run at this head.** Real `pi 1.3.0-fork.1` TUI in the owned PTY:
 `session_start` with `mode=tui`/`hasUI=true`, one real `ctx.ui.select()` opened and resolved to
@@ -231,12 +240,17 @@ confirmations — those processes were never proven to belong to the fixture and
 explicit manual GUI-cleanup item. `--mode os-effects` is implemented but unverified. Runtime
 source, defaults, release 0.3.0 and installed bytes are unchanged.
 
-**Regression coverage.** Seven process-level tests (`test/native-pty-smoke.test.mjs`) drive
+**Regression coverage.** Twelve process-level tests (`test/native-pty-smoke.test.mjs`) drive
 only node fixture processes: graceful owned exit, bounded `SIGTERM`/`SIGKILL` escalation
 confined to the owned group while a foreign session leader survives, startup failure without
-any signal, interrupt cleanup with exit 130, the ownership guard's refusal of pid/group/start
-mismatches and of non-leader processes, the inherited-environment and credential-free plan,
-and refusal of unsafe roots/packages/effect modes before any spawn. Total local suite: 179/179.
+any signal, non-zero and signal exits rejected as graceful, interrupt cleanup with exit 130, a
+registration failure that still closes/verifies/reaps its child, a deferred interrupt inside the
+fork-to-registration window, the ownership guard's refusal of pid/group/start mismatches, an
+unavailable start identity and non-leader processes, the inherited-environment and
+credential-free plan (including a `PATH` without Pi and a Pi stub that must not be executed),
+and refusal of unsafe roots/packages/dimensions/effect modes before any spawn. A failing case
+keeps its receipt, transcript and journal under `tmp/native-pty-tests`; only passing cases are
+cleaned. Total local suite: 184/184.
 
 ### Future optimization candidates
 

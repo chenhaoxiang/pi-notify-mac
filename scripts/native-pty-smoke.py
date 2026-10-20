@@ -55,6 +55,10 @@ CREDENTIAL_HINT = re.compile(r"key|token|secret|passw|credential|auth|proxy", re
 STUB_TEMPLATE = '#!/bin/sh\nprintf \'%s\\n\' "$0" >> {journal}\nexit 1\n'
 
 
+_DEFER = False
+_PENDING_SIGNAL = None
+
+
 def iso_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -92,7 +96,11 @@ def process_identity(pid):
 
 
 def ownership_check(pid, expect=None, require_session_leader=True):
-    """(ok, reason, current) - the only gate in front of every signal."""
+    """(ok, reason, current) - the only gate in front of every signal.
+
+    A recorded start identity is mandatory: an unavailable `ps` reading refuses the
+    signal instead of silently skipping the corroborating check.
+    """
     if not pid or pid <= 0:
         return False, "invalid-pid", None
     current = process_identity(pid)
@@ -101,9 +109,14 @@ def ownership_check(pid, expect=None, require_session_leader=True):
     if current.get("error"):
         return False, current["error"], current
     expect = expect or {}
-    for field, reason in (("pgid", "group-mismatch"), ("sid", "session-mismatch"), ("start", "start-mismatch")):
+    for field, reason in (("pgid", "group-mismatch"), ("sid", "session-mismatch")):
         if expect.get(field) is not None and current.get(field) != expect[field]:
             return False, reason, current
+    if "start" in expect:
+        if not expect.get("start") or not current.get("start"):
+            return False, "start-unavailable", current
+        if current["start"] != expect["start"]:
+            return False, "start-mismatch", current
     if require_session_leader and not (current["pgid"] == pid and current["sid"] == pid):
         return False, "not-session-leader", current
     return True, "ok", current
@@ -148,21 +161,30 @@ class Receipt:
 
 
 class OwnedChild:
-    """The only process this runner is allowed to stop."""
+    """The only process this runner is allowed to stop.
+
+    Construction does no I/O: the child exists the moment `pty.fork()` returns, so
+    registration must be assignable before the `ps` identity read can fail.
+    """
 
     def __init__(self, pid, receipt):
         self.pid = pid
         self.receipt = receipt
-        self.identity = process_identity(pid)
+        self.identity = None
+        self.registered = False
         self.reaped = False
         self.exit = None
-        self.record = {
-            "pid": pid,
-            "pgid": (self.identity or {}).get("pgid"),
-            "sid": (self.identity or {}).get("sid"),
-            "start": (self.identity or {}).get("start"),
-        }
+        self.record = {"pid": pid, "pgid": None, "sid": None, "start": None}
         receipt.data["child"] = dict(self.record)
+
+    def record_identity(self):
+        self.identity = process_identity(self.pid)
+        if self.identity:
+            for field in ("pgid", "sid", "start"):
+                self.record[field] = self.identity.get(field)
+        self.registered = True
+        self.receipt.data["child"].update(self.record)
+        return self.record
 
     @property
     def session_leader(self):
@@ -220,6 +242,12 @@ class PTYSession:
         self.total = 0
         self.eof = False
         self.closed = False
+
+    def prepare(self, rows, cols):
+        """Parent-side PTY setup after the child is already owned."""
+        fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        os.set_blocking(self.fd, False)
+        self.receipt.step("pty-prepared", "ok", rows=rows, cols=cols)
 
     def drain(self):
         if self.closed:
@@ -387,18 +415,104 @@ def pi_arguments(entry, fixture, label):
     ]
 
 
-def spawn_pty(command, argv, env, cwd, rows, cols):
-    pid, fd = pty.fork()
-    if pid == 0:
+def reap_child(pid):
+    try:
+        got, _status = os.waitpid(pid, os.WNOHANG)
+    except ChildProcessError:
+        return True
+    return got == pid
+
+
+class deferred_interrupt:
+    """A signal that lands between fork and registration is replayed afterwards."""
+
+    def __enter__(self):
+        global _DEFER
+        _DEFER = True
+        return self
+
+    def __exit__(self, *_exc):
+        global _DEFER
+        _DEFER = False
+        return False
+
+
+def replay_deferred_interrupt():
+    global _PENDING_SIGNAL
+    if _PENDING_SIGNAL is None:
+        return
+    signum, _PENDING_SIGNAL = _PENDING_SIGNAL, None
+    raise KeyboardInterrupt(f"signal {signum}")
+
+
+def fault_injection(stage):
+    """Test-only: PI_NATIVE_PTY_FAULT exercises the fork->registration window.
+
+    No product behaviour depends on this variable; it exists so the registration
+    failure and early-interrupt paths stay deterministic instead of timing-based.
+    """
+    if os.environ.get("PI_NATIVE_PTY_FAULT") != stage:
+        return
+    if stage == "after-fork":
+        raise RuntimeError("injected registration failure after fork")
+    if stage == "interrupt-after-fork":
+        os.kill(os.getpid(), signal.SIGINT)
+
+
+def abort_owned_child(pid, fd, receipt):
+    """Close, verify and reap a child this process created before registration finished."""
+    receipt.step("spawn-abort", "started", pid=pid)
+    if fd is not None:
         try:
-            os.chdir(cwd)
-            fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-            os.execvpe(command, [command] + list(argv), env)
-        except BaseException:
-            os._exit(127)
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-    os.set_blocking(fd, False)
-    return pid, fd
+            os.close(fd)
+        except OSError:
+            pass
+    identity = process_identity(pid)
+    if identity is None:
+        receipt.step("spawn-abort", "not-running", pid=pid)
+        return
+    if not (identity.get("pgid") == pid and identity.get("sid") == pid):
+        receipt.step("spawn-abort", "refused", reason="not-session-leader", identity=identity)
+        return
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + 5
+    reaped = False
+    while time.monotonic() < deadline:
+        if reap_child(pid):
+            reaped = True
+            break
+        time.sleep(0.02)
+    receipt.data["abortedChild"] = {"pid": pid, "identity": identity, "reaped": reaped}
+    receipt.step("spawn-abort", "reaped" if reaped else "unreaped", pid=pid)
+
+
+def start_owned_child(command, argv, env, cwd, rows, cols, receipt):
+    """fork+exec, then own the child before any further parent-side work can fail."""
+    pid = fd = None
+    session = None
+    try:
+        with deferred_interrupt():
+            pid, fd = pty.fork()
+            if pid == 0:
+                try:
+                    os.chdir(cwd)
+                    fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+                    os.execvpe(command, [command] + list(argv), env)
+                except BaseException:
+                    os._exit(127)
+            session = PTYSession(pid, fd, receipt)
+            fault_injection("after-fork")
+            fault_injection("interrupt-after-fork")
+        session.prepare(rows, cols)
+        session.owned.record_identity()
+    except BaseException:
+        if pid is not None and not (session is not None and session.owned.registered):
+            abort_owned_child(pid, fd, receipt)
+        raise
+    return session
 
 
 def escalate(session, receipt, args):
@@ -437,10 +551,26 @@ def drive_pi(session, root, journal, receipt, args):
     if not session.wait_exit(args.quit_timeout):
         session.send("/notify-native-end\r", "quit-fixture-command")
     if session.wait_exit(args.quit_timeout):
-        receipt.step("exit", "graceful")
+        record_exit(session, receipt, escalated=False)
         return
     escalate(session, receipt, args)
-    receipt.step("exit", "escalated")
+    record_exit(session, receipt, escalated=True)
+
+
+def record_exit(session, receipt, escalated):
+    """`graceful` means normal exit code 0 without escalation; everything else is named."""
+    state = session.owned.exit or {}
+    if escalated:
+        result = "escalated"
+    elif state.get("status") == "exited" and state.get("code") == 0:
+        result = "graceful"
+    elif state.get("status") == "exited":
+        result = "exited-nonzero"
+    elif state.get("status") == "signalled":
+        result = "signalled"
+    else:
+        result = "unknown"
+    receipt.step("exit", result, exit=state)
 
 
 def drive_fixture(session, receipt, args):
@@ -450,10 +580,10 @@ def drive_fixture(session, receipt, args):
         return
     session.send(args.quit_keys, "quit-keys")
     if session.wait_exit(args.quit_timeout):
-        receipt.step("exit", "graceful")
+        record_exit(session, receipt, escalated=False)
         return
     escalate(session, receipt, args)
-    receipt.step("exit", "escalated")
+    record_exit(session, receipt, escalated=True)
 
 
 def evaluate(receipt, args, session, root, journal, exit_row):
@@ -461,8 +591,10 @@ def evaluate(receipt, args, session, root, journal, exit_row):
     receipt.check("pty-allocated", session.fd >= 0)
     receipt.check("child-is-session-leader", session.owned.session_leader, session.owned.record)
     receipt.check("child-reaped", session.owned.reaped, session.owned.exit)
+    receipt.check("exit-recorded", exit_row is not None, exit_row)
     if expect_graceful:
-        receipt.check("graceful-exit", (exit_row or {}).get("result") == "graceful", session.owned.exit)
+        escalated = any(row["action"] == "stop" for row in receipt.data["steps"])
+        receipt.check("graceful-exit", (exit_row or {}).get("result") == "graceful" and not escalated, session.owned.exit)
     receipt.check("owned-signals-only", all(row["pgid"] == session.owned.pid for row in receipt.data["signals"]),
                   receipt.data["signals"])
     denied = root / "effects-denied.jsonl"
@@ -493,6 +625,11 @@ def validate_paths(args):
     fixture = Path(args.fixture_extension).expanduser().resolve()
     if args.profile == "pi" and not fixture.is_file():
         raise SystemExit(f"--fixture-extension missing: {fixture}")
+    if not (1 <= args.rows <= 1000 and 1 <= args.cols <= 1000):
+        raise SystemExit("--rows/--cols must be integers between 1 and 1000")
+    for name in ("ready_timeout", "quit_timeout", "term_timeout", "kill_timeout"):
+        if getattr(args, name) < 0:
+            raise SystemExit("--" + name.replace("_", "-") + " must not be negative")
     return out, package, entry, fixture
 
 
@@ -536,7 +673,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.verify_ownership is not None:
-        expect = {"pgid": args.expect_pgid, "sid": args.expect_sid, "start": args.expect_start}
+        expect = {field: value for field, value in (("pgid", args.expect_pgid), ("sid", args.expect_sid), ("start", args.expect_start)) if value is not None}
         ok, reason, current = ownership_check(args.verify_ownership, expect, require_session_leader=True)
         print(json.dumps({"ok": ok, "reason": reason, "identity": current}, indent=2))
         return 0 if ok else 3
@@ -549,16 +686,16 @@ def main(argv=None):
 
     out, package, entry, fixture = validate_paths(args)
     if args.profile == "pi":
-        pi = args.command or shutil.which("pi")
-        if not pi:
-            raise SystemExit("Pi CLI unavailable")
-        executable = str(Path(pi).resolve())
         command_argv = pi_arguments(entry, fixture, args.label)
+    elif not args.command:
+        raise SystemExit("--command is required for --profile fixture")
     else:
-        if not args.command:
-            raise SystemExit("--command is required for --profile fixture")
-        executable = str(Path(args.command).resolve())
         command_argv = list(args.command_arg)
+    planned = str(Path(args.command).resolve()) if args.command else None
+    # A plan never needs Pi; only a live run does. Nothing here starts a process.
+    executable = planned or (shutil.which("pi") if args.profile == "pi" else None)
+    if args.profile == "pi" and not args.dry_run and not executable:
+        raise SystemExit("Pi CLI unavailable")
 
     receipt = Receipt(args.profile, args.mode, out)
     receipt.data["command"] = {"executable": None, "argv": [], "sourceSha256": {}}
@@ -593,28 +730,31 @@ def main(argv=None):
         receipt.data["credentialLikeKeys"] = credential_keys
         receipt.data["command"].update({"executable": executable, "argv": command_argv})
         receipt.data["piVersion"] = None
-        if args.profile == "pi":
-            try:
-                version = subprocess.run([executable, "--version"], capture_output=True, text=True,
-                                         timeout=20, env=env, cwd=where["cwd"], check=False)
-                receipt.data["piVersion"] = (version.stdout or version.stderr).strip().splitlines()[0] if (version.stdout or version.stderr).strip() else None
-            except (OSError, subprocess.SubprocessError, IndexError):
-                receipt.data["piVersion"] = None
+        receipt.data["versionProbed"] = False
 
         if args.dry_run:
-            receipt.step("dry-run", "planned")
             receipt.check("isolated-home", Path(where["home"]).is_dir())
             receipt.check("isolated-agent-dir", Path(where["agentDir"]).is_dir())
             receipt.check("no-inherited-env", receipt.data["env"]["inheritedKeys"] == [])
             receipt.check("no-credential-env", credential_keys == [], credential_keys)
+            receipt.step("dry-run", "planned")
             emitted = True
             plan = receipt.finish()
             print(json.dumps(plan, indent=2, ensure_ascii=False))
             return 0
 
-        pid, fd = spawn_pty(executable, command_argv, env, where["cwd"], args.rows, args.cols)
-        session = PTYSession(pid, fd, receipt)
+        if args.profile == "pi":
+            try:
+                version = subprocess.run([executable, "--version"], capture_output=True, text=True,
+                                         timeout=20, env=env, cwd=where["cwd"], check=False)
+                receipt.data["piVersion"] = (version.stdout or version.stderr).strip().splitlines()[0] if (version.stdout or version.stderr).strip() else None
+                receipt.data["versionProbed"] = True
+            except (OSError, subprocess.SubprocessError, IndexError):
+                receipt.data["piVersion"] = None
+
         receipt.data["pty"] = {"rows": args.rows, "cols": args.cols, "allocated": True}
+        session = start_owned_child(executable, command_argv, env, where["cwd"], args.rows, args.cols, receipt)
+        replay_deferred_interrupt()
         receipt.check("isolated-home", Path(where["home"]).is_dir())
         receipt.check("isolated-agent-dir", Path(where["agentDir"]).is_dir())
         receipt.check("no-inherited-env", receipt.data["env"]["inheritedKeys"] == [])
@@ -690,10 +830,18 @@ def remove_owned_fixture(root, out):
 
 
 def _interrupt(signum, _frame):
+    global _PENDING_SIGNAL
+    if _DEFER:
+        _PENDING_SIGNAL = signum
+        return
     raise KeyboardInterrupt(f"signal {signum}")
 
 
 if __name__ == "__main__":
     for name in ("SIGINT", "SIGTERM", "SIGHUP"):
         signal.signal(getattr(signal, name), _interrupt)
-    sys.exit(main())
+    try:
+        code = main()
+    except KeyboardInterrupt:
+        code = 130
+    sys.exit(code)
