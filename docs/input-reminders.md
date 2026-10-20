@@ -4,12 +4,14 @@ project: workspace
 status: active
 truth_mode: maintained
 created: 2026-10-18
-verified: 2026-10-18
+verified: 2026-10-20
 verified_by: manual
+verification_scope: Scoped agent-driven native select lifecycle, owned alert cancellation and real playback timing; not acoustic or all-prompt acceptance
 owner: chx
 updated: 2026-10-20
 reviewed: 2026-10-20
 manual_smoke: partial
+native_agent_smoke: scoped-select
 release: 0.3.0
 ---
 
@@ -104,12 +106,55 @@ Runtime source, default intervals, switches, release 0.3.0 and installed bytes a
 No global deduplication or backoff is added: this evidence shows isolation at the existing
 instance boundary and does not establish a native duplicate-notification defect.
 
-The 2026-10-19 user-observed results above remain partial. Native answer-with-alert-open,
-concurrent real sessions and audible full-30-second repetition remain unverified. A local
-read-only check on 2026-10-20 found Cua Driver CLI 0.34.0 installed but its daemon not running;
+The 2026-10-19 user-observed results above remain partial. Before the native successor
+below, answer-with-alert-open, concurrent real sessions and full-30-second repetition
+remained unverified. An earlier read-only check on 2026-10-20 found Cua Driver CLI 0.34.0
+installed but its daemon not running;
 that is an observation prerequisite gap, not a notification failure. This source successor
 does not restart a shared service, launch/stop another user session, auto-answer a prompt,
 change host settings or treat installation as existing-session activation.
+
+### 2026-10-20 agent-driven native select successor
+
+The Owner explicitly requested autonomous testing. Two disposable, separately configured
+Pi **1.3.0-fork.1** TUI processes ran in dedicated Terminal.app windows with no model,
+credentials, tools, discovered packages or persistent conversation. Each loaded only the
+installed Notify **0.3.0** runtime and an owned synthetic-question extension. Cua Driver
+**0.34.0** started in its normal standard mode; existing Accessibility/Screen Recording
+permissions were read, not changed. No resident Pi session was reloaded or stopped.
+
+The synthetic fixture used the **real native `ctx.ui.select()` lifecycle**, not injected
+`ui_prompt_end` events or virtual timers. Agent input was restricted to its labelled test
+windows. A transparent test-process observer passed through the real `execFile` calls,
+recording fixed effect classes/times, child exit and AbortSignal state, never prompt text.
+The installed runtime was neither patched nor reinstalled. Its three source SHA-256 pins
+matched current main bytes at the time of the test:
+
+- `pi-notify-mac.ts`: `3e90f4fea3c31312630db9ab8b412ed73b0386c83d29464e75e12ed24c620415`
+- `input-reminder.ts`: `df1963df0442190a21c828842ee946c56aee4f1fe54c31921829a606a2443d7e`
+- `terminal-focus.ts`: `a6ec4980b8ecfa7e05d34a06c141e3ec853b0b63b726877565774211f6aa2477`
+
+| Scoped observation | Actual result |
+|---|---|
+| Three accepted select trials, 05:36:19–05:44:58 UTC | A.2, A.3 and B.1 returned the intended synthetic response through native window input. Their reminder process had not acknowledged/exited before the response; real UI resolution aborted it with `ABORT_ERR` and it exited by `SIGTERM`. |
+| Two real sessions waiting concurrently | A.3 resolved while B.1 stayed on its question and continued its own playback schedule. A emitted no later sound request; resolving A did not cancel B. |
+| Full default repeat intervals | 19 real `afplay` processes completed with exit 0 across accepted trials; consecutive in-prompt request intervals were **30000.75–30003.10 ms**, not a shortened test interval. |
+| Native alert presentation and removal | B.1's owned layer-8 alert window was observed on screen through AX and a window-scoped screenshot. After resolution, the owned alert processes exited and their all-layer window metadata was empty. Cua's layer-0 `list_windows` alone cannot establish alert absence. |
+| Stop after resolution | A condition-checked 31-second observation after both responses recorded **zero** new sound requests. No task-completion notification was requested by these input-only commands. |
+| Isolation and cleanup | The fixture had no available models; provider-request hooks and its network-denying observer recorded 0 requests. B exited through its owned shutdown command. After an exact-window focus failure during A cleanup, its recorded PID/current-directory ownership was rechecked and only that disposable fixture received `SIGTERM`; no other Pi process was signalled. |
+
+A first A.1 trial resolved before the agent issued its first input and is **excluded**:
+that external interaction cannot be attributed to autonomous acceptance. GUI delivery
+failures/unverifiable responses were re-observed rather than blindly replayed; successful
+answers were established from the native question-result journal, not the input tool's exit.
+Raw window captures and journals remain private temporary evidence; none is attached here.
+
+**Audio limit:** the system reported output volume 44 and `output muted:false`; actual
+playback exit/timing is verified, but physical speaker audibility was not independently
+measured or claimed. This closes the scoped native **select** cancellation/concurrency/
+playback-timing gap, not every standard prompt kind, the custom `ask_user_question`
+producer, iTerm/tmux, cross-Space/minimized variants, acoustic acceptance, resident-session
+hot loading, general reliability or ROI. The older user-observed manual results stay partial.
 
 ### Future optimization candidates
 
