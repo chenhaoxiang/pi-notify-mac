@@ -87,6 +87,29 @@ The private local session journal records the two normal test answers at `2026-1
 
 Not covered by this paired run: the full 30-second repeat interval, answering while the system alert is still open (automatic close/sound cancellation), standard confirm/select/input/editor prompt types, iTerm or other terminal types, tmux, cross-Space/minimized windows, abort/error cleanup, or hot-loading an already-running session. Those remain open boundaries.
 
+### 2026-10-20 common-scenario source regression successor
+
+A source-only test successor exercises two simultaneously waiting extension instances with the
+same opaque question ID; resolving, dismissing, starting a run, replacing a session or shutting
+down A must not cancel B or borrow B’s completion intent. It also checks the full default
+30-second boundary twice (initial/30s/60s sound requests), one OS-alert request per waiting
+interval, and no repeat or late focus after synthetic resolution while the alert is still open.
+Input resolution alone must not emit a task-completion notification.
+
+The existing virtual-transport harness passes 172/172 tests (prior 166 retained plus six new
+scenarios). These are synthetic lifecycle/timer/subprocess observations, **not** real macOS
+alert closure, audible repetition, a direct human answer, or multiple real Terminal sessions.
+Runtime source, default intervals, switches, release 0.3.0 and installed bytes are unchanged.
+No global deduplication or backoff is added: this evidence shows isolation at the existing
+instance boundary and does not establish a native duplicate-notification defect.
+
+The 2026-10-19 user-observed results above remain partial. Native answer-with-alert-open,
+concurrent real sessions and audible full-30-second repetition remain unverified. A local
+read-only check on 2026-10-20 found Cua Driver CLI 0.34.0 installed but its daemon not running;
+that is an observation prerequisite gap, not a notification failure. This source successor
+does not restart a shared service, launch/stop another user session, auto-answer a prompt,
+change host settings or treat installation as existing-session activation.
+
 ### Future optimization candidates
 
 These are not current release blockers:
