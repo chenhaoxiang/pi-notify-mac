@@ -416,15 +416,20 @@ def pi_arguments(entry, fixture, label):
 
 
 def reap_child(pid):
+    """Reap a child this process started; returns its exit state or None if still alive."""
     try:
-        got, _status = os.waitpid(pid, os.WNOHANG)
+        got, status = os.waitpid(pid, os.WNOHANG)
     except ChildProcessError:
-        return True
-    return got == pid
+        return {"status": "unknown-reaped"}
+    if got != pid:
+        return None
+    if os.WIFSIGNALED(status):
+        return {"status": "signalled", "signal": signal.Signals(os.WTERMSIG(status)).name}
+    return {"status": "exited", "code": os.WEXITSTATUS(status)}
 
 
 class deferred_interrupt:
-    """A signal that lands between fork and registration is replayed afterwards."""
+    """A signal that lands before the caller has assigned the child is replayed afterwards."""
 
     def __enter__(self):
         global _DEFER
@@ -446,10 +451,11 @@ def replay_deferred_interrupt():
 
 
 def fault_injection(stage):
-    """Test-only: PI_NATIVE_PTY_FAULT exercises the fork->registration window.
+    """Test-only: PI_NATIVE_PTY_FAULT exercises the fork->handoff window.
 
     No product behaviour depends on this variable; it exists so the registration
-    failure and early-interrupt paths stay deterministic instead of timing-based.
+    failure, early-interrupt and pre-handoff paths stay deterministic instead of
+    timing-based.
     """
     if os.environ.get("PI_NATIVE_PTY_FAULT") != stage:
         return
@@ -457,60 +463,90 @@ def fault_injection(stage):
         raise RuntimeError("injected registration failure after fork")
     if stage == "interrupt-after-fork":
         os.kill(os.getpid(), signal.SIGINT)
+    if stage == "interrupt-before-handoff":
+        os.kill(os.getpid(), signal.SIGINT)
+    if stage == "fail-before-handoff":
+        raise RuntimeError("injected failure before the owned child reached the caller")
 
 
-def abort_owned_child(pid, fd, receipt):
-    """Close, verify and reap a child this process created before registration finished."""
+def abort_owned_child(pid, fd, receipt, recorded=None):
+    """Close, verify and reap a child this process created but never handed over.
+
+    The pid is an unreaped child of this process, so it cannot be recycled. The gate
+    is evaluated while the child is still unreaped (before the master is closed); when
+    a registered start identity exists the normal start gate applies, otherwise the
+    basis is recorded explicitly instead of claiming a start comparison that never
+    happened. The SIGKILL attempt is always appended to `receipt.signals`.
+    """
     receipt.step("spawn-abort", "started", pid=pid)
+    expect = {"pgid": pid, "sid": pid}
+    basis = "unreaped-forked-child"
+    if recorded and recorded.get("start"):
+        expect["start"] = recorded["start"]
+        basis = "recorded-start-identity"
+    ok, reason, current = ownership_check(pid, expect, require_session_leader=True)
+    row = {"signal": "SIGKILL", "pgid": pid, "verified": current, "ownershipBasis": basis,
+           "stage": "spawn-abort", "result": "sent" if ok else "refused"}
+    if not ok:
+        row["reason"] = reason
+    receipt.data["signals"].append(row)
+    receipt.step("signal-SIGKILL", row["result"], basis=basis, reason=reason)
+    if ok:
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            row["result"] = "gone"
+        except OSError as error:
+            row["result"] = "failed"
+            row["error"] = error.strerror or str(error)
     if fd is not None:
         try:
             os.close(fd)
         except OSError:
             pass
-    identity = process_identity(pid)
-    if identity is None:
-        receipt.step("spawn-abort", "not-running", pid=pid)
-        return
-    if not (identity.get("pgid") == pid and identity.get("sid") == pid):
-        receipt.step("spawn-abort", "refused", reason="not-session-leader", identity=identity)
-        return
-    try:
-        os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
     deadline = time.monotonic() + 5
     reaped = False
+    exit_state = None
     while time.monotonic() < deadline:
-        if reap_child(pid):
+        exit_state = reap_child(pid)
+        if exit_state:
             reaped = True
             break
         time.sleep(0.02)
-    receipt.data["abortedChild"] = {"pid": pid, "identity": identity, "reaped": reaped}
+    if exit_state:
+        receipt.data["child"]["exit"] = exit_state
+    receipt.data["abortedChild"] = {"pid": pid, "identity": current, "reaped": reaped, "ownershipBasis": basis}
     receipt.step("spawn-abort", "reaped" if reaped else "unreaped", pid=pid)
 
 
 def start_owned_child(command, argv, env, cwd, rows, cols, receipt):
-    """fork+exec, then own the child before any further parent-side work can fail."""
+    """fork+exec and own the child until the caller has assigned the session.
+
+    The caller keeps interrupts deferred across its own assignment, so this function
+    aborts any child it created but did not hand over - including when identity
+    registration already succeeded - instead of leaving cleanup to the caller.
+    """
     pid = fd = None
     session = None
     try:
-        with deferred_interrupt():
-            pid, fd = pty.fork()
-            if pid == 0:
-                try:
-                    os.chdir(cwd)
-                    fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
-                    os.execvpe(command, [command] + list(argv), env)
-                except BaseException:
-                    os._exit(127)
-            session = PTYSession(pid, fd, receipt)
-            fault_injection("after-fork")
-            fault_injection("interrupt-after-fork")
+        pid, fd = pty.fork()
+        if pid == 0:
+            try:
+                os.chdir(cwd)
+                fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+                os.execvpe(command, [command] + list(argv), env)
+            except BaseException:
+                os._exit(127)
+        session = PTYSession(pid, fd, receipt)
+        fault_injection("after-fork")
+        fault_injection("interrupt-after-fork")
         session.prepare(rows, cols)
         session.owned.record_identity()
+        fault_injection("interrupt-before-handoff")
+        fault_injection("fail-before-handoff")
     except BaseException:
-        if pid is not None and not (session is not None and session.owned.registered):
-            abort_owned_child(pid, fd, receipt)
+        if pid is not None and not (session is not None and session.owned.reaped):
+            abort_owned_child(pid, fd, receipt, recorded=(session.owned.record if session is not None else None))
         raise
     return session
 
@@ -753,7 +789,8 @@ def main(argv=None):
                 receipt.data["piVersion"] = None
 
         receipt.data["pty"] = {"rows": args.rows, "cols": args.cols, "allocated": True}
-        session = start_owned_child(executable, command_argv, env, where["cwd"], args.rows, args.cols, receipt)
+        with deferred_interrupt():
+            session = start_owned_child(executable, command_argv, env, where["cwd"], args.rows, args.cols, receipt)
         replay_deferred_interrupt()
         receipt.check("isolated-home", Path(where["home"]).is_dir())
         receipt.check("isolated-agent-dir", Path(where["agentDir"]).is_dir())

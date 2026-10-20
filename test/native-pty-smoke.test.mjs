@@ -189,8 +189,58 @@ test('a registration failure after fork still closes, verifies and reaps the chi
     assert.equal(receipt.abortedChild.reaped, true);
     assert.equal(receipt.abortedChild.identity.sid, receipt.abortedChild.pid, 'abort only runs for its own session leader');
     assert.equal(alive(receipt.abortedChild.pid), false);
-    assert.deepEqual(receipt.signals, []);
+    assert.equal(receipt.signals.length, 1, 'the abort SIGKILL attempt must be recorded, not hidden as zero attempts');
+    const [abortSignal] = receipt.signals;
+    assert.equal(abortSignal.stage, 'spawn-abort');
+    assert.equal(abortSignal.signal, 'SIGKILL');
+    assert.equal(abortSignal.pgid, receipt.abortedChild.pid, 'abort may only address the pid it forked');
+    assert.equal(abortSignal.result, 'sent');
+    assert.equal(abortSignal.ownershipBasis, 'unreaped-forked-child');
+    assert.equal(abortSignal.verified.sid, receipt.abortedChild.pid);
     assert.equal(alive(decoy.pid), true, 'abort must not touch a foreign session');
+    keep(result.out);
+  } finally {
+    decoy.kill('SIGKILL');
+    await waitForExit(decoy).catch(() => {});
+  }
+});
+
+test('a failure after registration but before handoff still aborts under the recorded start gate', { skip }, async () => {
+  const decoy = spawnSessionLeader();
+  try {
+    const result = run('fault-fail-before-handoff', fixtureRun('ignore-quit.mjs', ['--quit-keys', 'quit\n', '--expect', 'any-exit']),
+      { env: { ...process.env, PI_NATIVE_PTY_FAULT: 'fail-before-handoff' } });
+    assert.equal(result.status, 3, result.stderr);
+    const { receipt } = result;
+    assert.equal(receipt.success, false);
+    assert.equal(receipt.child.pid, receipt.child.sid, 'the child had already been registered');
+    assert.equal(receipt.abortedChild.reaped, true, 'a registered child is still cleaned by the function itself');
+    assert.equal(alive(receipt.child.pid), false);
+    assert.equal(receipt.signals.length, 1);
+    assert.equal(receipt.signals[0].result, 'sent');
+    assert.equal(receipt.signals[0].ownershipBasis, 'recorded-start-identity');
+    assert.equal(receipt.signals[0].verified.start, receipt.child.start, 'the registered start identity is re-checked');
+    assert.equal(receipt.child.exit !== undefined, true, 'the reaped child exit state is recorded');
+    assert.equal(alive(decoy.pid), true, 'abort must not touch a foreign session');
+    keep(result.out);
+  } finally {
+    decoy.kill('SIGKILL');
+    await waitForExit(decoy).catch(() => {});
+  }
+});
+
+test('a signal after registration but before handoff exits 130 with its own child reaped', { skip }, async () => {
+  const decoy = spawnSessionLeader();
+  try {
+    const result = run('fault-interrupt-before-handoff', fixtureRun('ignore-quit.mjs', ['--quit-keys', 'quit\n', '--expect', 'any-exit']),
+      { env: { ...process.env, PI_NATIVE_PTY_FAULT: 'interrupt-before-handoff' } });
+    assert.equal(result.status, 130, result.stderr);
+    const { receipt } = result;
+    assert.equal(receipt.interrupted, true);
+    assert.equal(receipt.child.pid, receipt.child.sid, 'the interrupted child is the registered one');
+    assert.ok(receipt.child.exit, 'the deferred interrupt reaps the child it started');
+    assert.equal(alive(receipt.child.pid), false, 'the pre-handoff window must not leak the owned child');
+    assert.equal(alive(decoy.pid), true, 'the deferred interrupt must not touch a foreign session');
     keep(result.out);
   } finally {
     decoy.kill('SIGKILL');
