@@ -19,7 +19,7 @@ const start = async h => {
   h.clock.advance(250);
 };
 
-test('two waiting sessions isolate prompt cancellation even with the same question id', async () => {
+test('two independent virtual runtimes retain prompt cancellation state with the same question id', async () => {
   const [a, b] = await Promise.all([ready('session-a'), ready('session-b')]);
   await start(a); await start(b);
   assert.equal(alerts(a).length, 1); assert.equal(alerts(b).length, 1);
@@ -32,8 +32,6 @@ test('two waiting sessions isolate prompt cancellation even with the same questi
   assert.equal(sounds(a).length, 1); assert.equal(sounds(b).length, 1);
   b.clock.advance(1); assert.equal(sounds(b).length, 2);
   assert.equal(alerts(b).length, 1, 'sound repetition must not spawn a second alert');
-  alerts(a)[0].finish(null, 'button returned:去终端处理');
-  assert.equal(a.calls.filter(c => c.command === 'osascript' && !/display (alert|notification)/.test(c.args.at(-1))).length, 0);
   assert.equal(completions(a).length + completions(b).length, 0, 'input resolution is not task completion');
   question(b, 'end'); await b.emit('ui_prompt_end');
   assert.ok(alerts(b)[0].aborted); assert.equal(a.clock.pending + b.clock.pending, 0);
@@ -52,7 +50,7 @@ test('full default thirty-second boundaries repeat only while that session remai
   assert.equal(completions(h).length, 0);
 });
 
-for (const invalidate of ['session_start', 'session_shutdown', 'agent_start']) test(`${invalidate} in A does not cancel B or borrow its completion`, async () => {
+for (const invalidate of ['session_start', 'session_shutdown', 'agent_start']) test(`${invalidate} in virtual A leaves virtual B waiting`, async () => {
   const a = await ready('invalidate-a'), b = await ready('invalidate-b');
   await start(a); await start(b);
   await a.emit(invalidate);

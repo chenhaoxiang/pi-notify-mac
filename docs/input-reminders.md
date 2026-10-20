@@ -7,8 +7,8 @@ created: 2026-10-18
 verified: 2026-10-18
 verified_by: manual
 owner: chx
-updated: 2026-10-19
-reviewed: 2026-10-19
+updated: 2026-10-20
+reviewed: 2026-10-20
 manual_smoke: partial
 release: 0.3.0
 ---
@@ -90,10 +90,11 @@ Not covered by this paired run: the full 30-second repeat interval, answering wh
 ### 2026-10-20 common-scenario source regression successor
 
 A source-only test successor exercises two simultaneously waiting extension instances with the
-same opaque question ID; resolving, dismissing, starting a run, replacing a session or shutting
-down A must not cancel B or borrow B’s completion intent. It also checks the full default
+same opaque question ID in separate virtual runtimes; each instance retains its own
+timer/alert/sound state when A resolves, dismisses, starts a run, is replaced or shuts down.
+This is per-instance characterization, not proof about shared native delivery resources. It also checks the full default
 30-second boundary twice (initial/30s/60s sound requests), one OS-alert request per waiting
-interval, and no repeat or late focus after synthetic resolution while the alert is still open.
+interval, and no repeat after synthetic resolution while the alert is still open.
 Input resolution alone must not emit a task-completion notification.
 
 The existing virtual-transport harness passes 172/172 tests (prior 166 retained plus six new

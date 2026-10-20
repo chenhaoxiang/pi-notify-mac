@@ -9,7 +9,7 @@ Do not trigger real notifications, sounds, model requests or edit machine-wide P
 - `docs/maintenance/2026-10-18-input-reminders-installed.md`: 0.3.0 exact-head review/merge/CI, immutable assets and flat checksum supplement, single-source installed bytes/legacy backup, and unverified live macOS boundaries.
 
 - `openspec/changes/integrate-input-reminders/`: approved single-package input-reminder behavior, design, migration scope and verification tasks.
-- `docs/input-reminders.md`: cancellable prompt lifecycle, migration, post-delivery review, partial user-observed native smoke (reminder dismissal and correct Terminal tab), 2026-10-20 synthetic concurrent-session/30-second boundary regressions, remaining native checks and optional optimizations.
+- `docs/input-reminders.md`: cancellable prompt lifecycle, migration, post-delivery review, partial user-observed native smoke (reminder dismissal and correct Terminal tab), 2026-10-20 synthetic per-instance/30-second boundary regressions, remaining native checks and optional optimizations.
 
 - `docs/maintenance/2026-10-14-audited-bugfix-installed.md`: 0.2.1 red/green defect closure, exact-review-before-merge, main CI, schema1 original Release, installed bytes/native synthetic recheck and activation limits.
 
