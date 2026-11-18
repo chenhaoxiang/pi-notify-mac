@@ -73,14 +73,26 @@ function run() {
       var reply = event.sendEventWithOptionsTimeoutError(3, 0.5, error);
       if (!reply) throw Error(ObjC.unwrap(error[0].description));
       var number = reply.paramDescriptorForKeyword(code("errn"));
-      if (number && number.int32Value) throw Error("AppleEvent error " + number.int32Value);
+      if (number && number.int32Value) {
+        var failure = Error("Terminal AppleEvent failed");
+        failure.osStatus = number.int32Value;
+        throw failure;
+      }
       return reply.paramDescriptorForKeyword(code("----"));
     }
     try {
       var windows = send("getd", all("cwin"));
       for (var w = 1; w <= windows.numberOfItems; w++) {
         var window = windows.descriptorAtIndex(w);
-        var tabs = send("getd", all("ttab", window));
+        var tabs;
+        try {
+          tabs = send("getd", all("ttab", window));
+        } catch (error) {
+          // Terminal can enumerate a window with no scriptable tabs (-1728).
+          // Skip only that absent object, not permission or transport errors.
+          if (error.osStatus === -1728) continue;
+          throw error;
+        }
         for (var t = 1; t <= tabs.numberOfItems; t++) {
           var tab = tabs.descriptorAtIndex(t);
           if (ObjC.unwrap(send("getd", property("ttty", tab)).stringValue) !== targetTty) continue;

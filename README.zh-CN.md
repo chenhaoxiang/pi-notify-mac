@@ -11,12 +11,12 @@
 
 ## 安装与迁移
 
-当前发布版本为 **0.3.0**。已从合入后的主分支发布固定制品、来源清单与校验文件，并完成下载回读。历史版本保持不变。
+当前发布版本为 **0.3.1**，修复了 Terminal 遇到无可读取标签的窗口后无法继续定位的问题。
 
-全新安装使用固定发布版本：
+全新安装使用固定版本：
 
 ```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.1
 ```
 
 **已经安装手工扩展的用户需要先迁移。** 在可信、完成校验的解压包内执行：

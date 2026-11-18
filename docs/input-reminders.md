@@ -12,14 +12,14 @@ updated: 2026-10-20
 reviewed: 2026-10-20
 manual_smoke: partial
 native_agent_smoke: scoped-select
-release: 0.3.0
+release: 0.3.1
 ---
 
 # Waiting-for-input reminders and legacy migration
 
 ## One package, two purposes
 
-The 0.3.0 source integrates the former personal `approval-notify.ts` behavior into `pi-notify-mac`. `src/pi-notify-mac.ts` is the only manifest entry; `input-reminder.ts` and `terminal-focus.ts` are internal modules, not separately discoverable extensions. Do not copy just the entry file. No old-path import, deprecated shim, second package or dependency on `rpiv-ask-user-question` is retained.
+The 0.3.1 source integrates the former personal `approval-notify.ts` behavior into `pi-notify-mac`. `src/pi-notify-mac.ts` is the only manifest entry; `input-reminder.ts` and `terminal-focus.ts` are internal modules, not separately discoverable extensions. Do not copy just the entry file. No old-path import, deprecated shim, second package or dependency on `rpiv-ask-user-question` is retained.
 
 Completion notifications keep their existing final-settle, pending-message, child-state and renewed-grace guards. Input reminders independently request a macOS warning alert, Hero sound and a TTY-only bell. The alert is an attention hint, never an approval decision. “知道了”/Escape dismisses the reminder only; “去终端处理” selects the originating Terminal/iTerm tab. Unknown/no tty has no jump button; other recognized terminals offer explicitly app-only activation. Parent-tty fallback says “返回父会话” and does not claim a background confirmation awaits there.
 
@@ -41,7 +41,7 @@ Actual `ui_prompt_start/end` intervals control delivery. Standard confirm/select
 
 Prompt resolution, the matching producer end event, new runs, session replacement and shutdown cancel owned timers and abort alert/sound/focus subprocesses. Acknowledgement stops repeating sound without answering the UI; late callbacks cannot jump after cancellation. Mode/UI are rechecked before dispatch and sound repetition. Only macOS TUI contexts with UI can remind; RPC/JSON/print and no-UI runners stay silent. No factory-time subprocesses or timers are started.
 
-The OS alert does not include prompt titles, question text, options, answers, tool arguments or session-file paths. `/notify-status` is read-only and reports both enable switches and input state (`idle`, `delay`, `alert-requested`, `dismissed`, `dismissed-or-unavailable`, `disabled`). A requested alert is not proof of macOS presentation. Terminal tty lookup is asynchronous with a 1s timeout, focus with 2s, and sound playback with 5s. The human-facing alert has no timeout but is abortable with its prompt lifetime. Exact Terminal selection uses PID-addressed AppleEvents, not application-name fallback to an arbitrary instance. Jump failures are logged without raw subprocess output or prompt data. tmux tty indirection may prevent exact lookup; iTerm and cross-Space behavior still require environment-specific manual checks.
+The OS alert does not include prompt titles, question text, options, answers, tool arguments or session-file paths. `/notify-status` is read-only and reports both enable switches and input state (`idle`, `delay`, `alert-requested`, `dismissed`, `dismissed-or-unavailable`, `disabled`). A requested alert is not proof of macOS presentation. Terminal tty lookup is asynchronous with a 1s timeout, focus with 2s, and sound playback with 5s. The human-facing alert has no timeout but is abortable with its prompt lifetime. Exact Terminal selection uses PID-addressed AppleEvents, not application-name fallback to an arbitrary instance. A transient Terminal window that exposes no scriptable tabs is skipped so later windows can still be matched; permission, transport and selection-verification failures remain fail-closed. Jump failures are logged without raw subprocess output or prompt data. tmux tty indirection may prevent exact lookup; iTerm and cross-Space behavior still require environment-specific manual checks.
 
 ## Install and migrate
 

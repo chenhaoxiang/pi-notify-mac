@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
+import { runInNewContext } from 'node:vm';
 import { harness } from './helpers/extension-vm.mjs';
 
 const source = process.env.PI_NOTIFY_TEST_SOURCE ? pathToFileURL(process.env.PI_NOTIFY_TEST_SOURCE) : new URL('../src/pi-notify-mac.ts', import.meta.url);
@@ -161,6 +162,80 @@ test('jump uses PID-addressed Terminal selection, time bounds and the originatin
   assert.equal(call.config.timeout, 2000); assert.match(call.args.at(-1), /code\("kpid"\)/); assert.match(call.args.at(-1), /\/dev\/ttys008/);
   assert.doesNotMatch(call.args.at(-1), /tell application "Terminal" to activate/);
   assert.equal(h.calls.find(c => c.command === 'ps').config.timeout, 1000); assert.equal(h.clock.pending, 0);
+});
+
+// Evaluate the script that the actual button generated; only the macOS transport
+// is replaced. Terminal lists a window whose tab query may return -1728.
+function runTerminalScript(script, windowError, targetTty = '/dev/ttys008') {
+  const decode = value => String.fromCharCode(value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255);
+  const list = (...items) => ({ numberOfItems: items.length, descriptorAtIndex: index => items[index - 1] });
+  const reply = (value, osStatus) => ({ paramDescriptorForKeyword(key) {
+    return decode(key) === 'errn' ? osStatus && { int32Value: osStatus } : value;
+  } });
+  const absent = { window: 1 }, window = { window: 2 }, tab = { window: 2, tab: 1 };
+  const mutations = [], queries = [], unexpected = [];
+  const descriptors = {
+    descriptorWithTypeCode: decode, descriptorWithEnumCode: value => ({ data: decode(value) }),
+    descriptorWithInt32: value => ({ data: value }), descriptorWithBoolean: booleanValue => ({ booleanValue }),
+    descriptorWithDescriptorTypeData: (kind, data) => ({ kind: decode(kind), data }),
+    nullDescriptor: {},
+    get recordDescriptor() {
+      const fields = {};
+      return { setDescriptorForKeyword: (value, key) => { fields[decode(key)] = value; }, coerceToDescriptorType: () => fields };
+    },
+    appleEventWithEventClassEventIDTargetDescriptorReturnIDTransactionID(eventClass, id, address) {
+      const args = {};
+      return {
+        setParamDescriptorForKeyword: (value, key) => { args[decode(key)] = value; },
+        sendEventWithOptionsTimeoutError() {
+          const request = args['----'];
+          if (decode(id) !== 'getd') {
+            mutations.push([address, decode(eventClass), decode(id), request?.seld, request?.from, args.data]);
+            return reply();
+          }
+          if (request.want === 'cwin') return reply(list(absent, window));
+          if (request.want === 'ttab') {
+            queries.push(request.from.window);
+            return request.from === absent ? reply(undefined, windowError) : reply(list(tab));
+          }
+          if (request.seld === 'ttty' && request.from === tab) return reply({ stringValue: targetTty });
+          if (request.seld === 'tbsl' && request.from === tab) return reply({ booleanValue: true });
+          if (request.seld === 'pidx' && request.from === window) return reply({ int32Value: 1 });
+          unexpected.push(request);
+          return reply(undefined, -1708);
+        },
+      };
+    },
+  };
+  const result = runInNewContext(script, {
+    ObjC: { import() {}, unwrap: value => value }, Ref: () => [],
+    $: { NSAppleEventDescriptor: descriptors, NSRunningApplication: { runningApplicationsWithBundleIdentifier: id => {
+      assert.equal(id, 'com.apple.Terminal');
+      return { count: 1, objectAtIndex: () => ({ processIdentifier: 321, active: true }) };
+    } } },
+  }, { timeout: 500 });
+  assert.deepEqual(unexpected, []);
+  return { result, mutations, queries, window, tab };
+}
+
+for (const [name, windowError, targetTty, expected, queries] of [
+  ['tab after a stale window is reached', -1728, '/dev/ttys008', 'ok', [1, 2]],
+  ['permission failure is not treated as an absent object', -1743, '/dev/ttys008', 'failed', [1]],
+  ['no exact TTY never changes a window', -1728, '/dev/ttys009', 'notfound', [1, 2]],
+]) test(`Terminal jump: ${name}`, async () => {
+  const h = await ready(); await prompt(h); h.clock.advance(250);
+  alerts(h)[0].finish(null, 'button returned:去终端处理');
+  const result = runTerminalScript(focuses(h)[0].args.at(-1), windowError, targetTty);
+  assert.equal(result.result, expected);
+  assert.deepEqual(result.queries, queries);
+  const pid = { kind: 'kpid', data: 321 };
+  assert.deepEqual(result.mutations, expected === 'ok' ? [
+    [pid, 'core', 'setd', 'tbsl', result.tab, { booleanValue: true }],
+    [pid, 'core', 'setd', 'pmnd', result.window, { booleanValue: false }],
+    [pid, 'core', 'setd', 'pidx', result.window, { data: 1 }],
+    [pid, 'misc', 'actv', undefined, undefined, undefined],
+  ] : []);
+  await h.emit('ui_prompt_end');
 });
 
 test('parent tty fallback is labeled truthfully; no tty or unknown terminal has no dead button', async () => {
