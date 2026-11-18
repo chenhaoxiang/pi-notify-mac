@@ -11,12 +11,12 @@ One macOS notification package for Pi: completion notifications and waiting-for-
 
 ## Install and migrate
 
-The **0.3.1** local candidate fixes Terminal tab lookup when another window exposes no scriptable tabs. The latest published release remains **0.3.0**.
+Current released version: **0.3.1**. This release fixes Terminal tab lookup when another window exposes no scriptable tabs.
 
-For a fresh installation of the published version, let Pi manage the first settings write:
+For a fresh installation, let Pi manage the first settings write:
 
 ```bash
-pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.1
 ```
 
 **Existing manual installations must migrate first.** From a trusted checksum-verified extracted package, run:
