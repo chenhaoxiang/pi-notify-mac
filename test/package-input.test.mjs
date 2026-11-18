@@ -14,7 +14,10 @@ test('packed artifact includes every runtime module, migration installer and lin
   try {
     const result = spawnSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', scratch], { cwd: repository, env: { PATH: process.env.PATH, HOME: scratch, npm_config_cache: path.join(scratch, 'cache') }, encoding: 'utf8', timeout: 30000 });
     assert.equal(result.status, 0, result.stderr);
-    const files = JSON.parse(result.stdout)[0].files.map(f => f.path);
+    const packed = JSON.parse(result.stdout);
+    const record = Array.isArray(packed) ? packed[0] : packed['pi-notify-mac'];
+    assert.equal(record?.name, 'pi-notify-mac', 'npm pack must report the expected package');
+    const files = record.files.map(f => f.path);
     for (const name of ['src/pi-notify-mac.ts', 'src/input-reminder.ts', 'src/terminal-focus.ts', 'install.sh', 'scripts/install-local.mjs', 'README.md', 'README.zh-CN.md', 'docs/input-reminders.md', 'docs/notification-diagnostics.md', 'docs/notification-completion.md', 'docs/settled-ui-resume.md', 'docs/releasing.md']) assert.ok(files.includes(name), name);
     assert.ok(files.every(name => !name.startsWith('test/') && !name.startsWith('tmp/') && !name.includes('approval-notify.ts')));
     const manifest = JSON.parse(fs.readFileSync(path.join(repository, 'package.json')));
