@@ -1,6 +1,6 @@
 {
   "name": "pi-notify-mac",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "macOS completion and waiting-for-input reminders for Pi, with cancellable alerts, sound and terminal focus.",
   "license": "MIT",
   "author": "chenhaoxiang",
