@@ -11,15 +11,13 @@
 
 ## 安装与迁移
 
-当前本地升级候选版本为 **0.3.1**。它由已合入的主分支构建，已生成固定制品与校验文件；本次只做本地安装，不替换或冒称 GitHub Release。
+**0.3.1** 本地候选包修复了 Terminal 遇到无可读取标签的窗口后无法继续定位的问题。最新公开发布版仍为 **0.3.0**。
 
-全新安装使用已核验的固定版本：
+全新安装公开版时，请使用固定版本：
 
 ```bash
-pi install /absolute/path/to/pi-notify-mac-0.3.1
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
 ```
-
-如安装公开版本，使用对应的 GitHub Release tag。
 
 **已经安装手工扩展的用户需要先迁移。** 在可信、完成校验的解压包内执行：
 

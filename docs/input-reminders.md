@@ -12,14 +12,14 @@ updated: 2026-10-20
 reviewed: 2026-10-20
 manual_smoke: partial
 native_agent_smoke: scoped-select
-release: 0.3.1
+release: 0.3.0
 ---
 
 # Waiting-for-input reminders and legacy migration
 
 ## One package, two purposes
 
-The 0.3.1 source integrates the former personal `approval-notify.ts` behavior into `pi-notify-mac`. `src/pi-notify-mac.ts` is the only manifest entry; `input-reminder.ts` and `terminal-focus.ts` are internal modules, not separately discoverable extensions. Do not copy just the entry file. No old-path import, deprecated shim, second package or dependency on `rpiv-ask-user-question` is retained.
+The 0.3.0 source integrates the former personal `approval-notify.ts` behavior into `pi-notify-mac`. `src/pi-notify-mac.ts` is the only manifest entry; `input-reminder.ts` and `terminal-focus.ts` are internal modules, not separately discoverable extensions. Do not copy just the entry file. No old-path import, deprecated shim, second package or dependency on `rpiv-ask-user-question` is retained.
 
 Completion notifications keep their existing final-settle, pending-message, child-state and renewed-grace guards. Input reminders independently request a macOS warning alert, Hero sound and a TTY-only bell. The alert is an attention hint, never an approval decision. “知道了”/Escape dismisses the reminder only; “去终端处理” selects the originating Terminal/iTerm tab. Unknown/no tty has no jump button; other recognized terminals offer explicitly app-only activation. Parent-tty fallback says “返回父会话” and does not claim a background confirmation awaits there.
 

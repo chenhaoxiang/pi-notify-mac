@@ -11,15 +11,13 @@ One macOS notification package for Pi: completion notifications and waiting-for-
 
 ## Install and migrate
 
-Current local upgrade candidate: **0.3.1**. It is built from the merged main source with an immutable package and checksums; the GitHub Release is not being replaced or claimed by this local installation.
+The **0.3.1** local candidate fixes Terminal tab lookup when another window exposes no scriptable tabs. The latest published release remains **0.3.0**.
 
-For a fresh local installation, let Pi manage the first settings write:
+For a fresh installation of the published version, let Pi manage the first settings write:
 
 ```bash
-pi install /absolute/path/to/pi-notify-mac-0.3.1
+pi install git:github.com/chenhaoxiang/pi-notify-mac@v0.3.0
 ```
-
-For a published version, use the corresponding GitHub Release tag instead.
 
 **Existing manual installations must migrate first.** From a trusted checksum-verified extracted package, run:
 
@@ -82,7 +80,7 @@ Tests require Node 24 or another version supporting TypeScript erasure and VM mo
 
 ## Releases and maintenance
 
-This is an original project, using ordinary SemVer and `v<version>` tags. `main` is PR-managed; no fictional community upstream is claimed. [GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) carry published installable tarballs, exact-source manifests and SHA256SUMS. Verify the selected package before installation. A GitHub Release is not npm publication. See [release maintenance](docs/releasing.md) and the historical [completion/migration contract](docs/notification-completion.md).
+This is an original project, using ordinary SemVer and `v<version>` tags. `main` is PR-managed; no fictional community upstream is claimed. [GitHub Releases](https://github.com/chenhaoxiang/pi-notify-mac/releases) carry the installable tarball, exact-source manifest and SHA256SUMS. Verify fresh downloads before installation. A GitHub Release is not npm publication. See [release maintenance](docs/releasing.md) and the historical [completion/migration contract](docs/notification-completion.md).
 
 ## License
 
